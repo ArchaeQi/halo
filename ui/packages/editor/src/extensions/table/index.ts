@@ -9,12 +9,14 @@ import {
   mergeAttributes,
   isNodeActive,
   CoreEditor,
+  findParentNode,
 } from "@/tiptap";
 import {
   type Node as ProseMirrorNode,
   type NodeView,
   type EditorState,
   type DOMOutputSpec,
+  TextSelection,
 } from "@/tiptap/pm";
 import TableCell from "./table-cell";
 import TableRow from "./table-row";
@@ -36,7 +38,14 @@ import { markRaw } from "vue";
 import { i18n } from "@/locales";
 import type { ExtensionOptions, NodeBubbleMenu } from "@/types";
 import { BlockActionSeparator, ToolboxItem } from "@/components";
-import { hasTableBefore, isTableSelected } from "./util";
+import {
+  findNextCell,
+  findPreviousCell,
+  hasTableBefore,
+  isCellSelection,
+  isTableSelected,
+  selectTable,
+} from "./util";
 
 function updateColumns(
   node: ProseMirrorNode,
@@ -127,21 +136,12 @@ class TableView implements NodeView {
       return this.handleHorizontalWheel(this.containerDOM, e);
     });
 
-    let mouseX = 0;
-    let mouseY = 0;
-    document.addEventListener("mousemove", function (event) {
-      mouseX = event.clientX;
-      mouseY = event.clientY;
-    });
-
     this.containerDOM.addEventListener("scroll", () => {
       if (!editor) {
         return false;
       }
       const { view } = editor;
-      const coords = { left: mouseX, top: mouseY };
-      const pos = view.posAtCoords(coords);
-      editor.commands.setTextSelection(pos?.pos || 0);
+      view.dispatch(view.state.tr);
     });
 
     this.scrollDom = document.createElement("div");
@@ -484,6 +484,94 @@ const Table = TiptapTable.extend<ExtensionOptions & TableOptions>({
       Backspace: () => handleBackspace(),
 
       "Mod-Backspace": () => handleBackspace(),
+
+      "Mod-a": ({ editor }) => {
+        if (!isNodeActive(editor.state, Table.name)) {
+          return false;
+        }
+
+        const { tr, selection } = editor.state;
+        // If the entire table is already selected, no longer perform the select all operation.
+        if (isTableSelected(selection)) {
+          return true;
+        }
+
+        if (isCellSelection(selection)) {
+          selectTable(tr);
+          editor.view.dispatch(tr);
+          return true;
+        }
+
+        let cellNodePos = findParentNode(
+          (node) => node.type.name === TableCell.name
+        )(selection);
+        if (!cellNodePos) {
+          cellNodePos = findParentNode(
+            (node) => node.type.name === TableHeader.name
+          )(selection);
+        }
+        if (!cellNodePos) {
+          return false;
+        }
+        editor.commands.setNodeSelection(cellNodePos.pos);
+        return true;
+      },
+      Tab: ({ editor }) => {
+        const { state } = editor;
+        if (!isActive(editor.state, Table.name)) {
+          return false;
+        }
+        let nextView = editor.view;
+        let nextTr = editor.state.tr;
+
+        let nextCell = findNextCell(state);
+        if (!nextCell) {
+          // If it is the last cell, create a new line and jump to the first cell of the new line.
+          editor
+            .chain()
+            .addRowAfter()
+            .command(({ tr, view, state }) => {
+              nextView = view;
+              nextTr = tr;
+              nextCell = findNextCell(state);
+              return true;
+            });
+        }
+        if (nextCell) {
+          nextTr.setSelection(
+            new TextSelection(
+              nextTr.doc.resolve(nextCell.start),
+              nextTr.doc.resolve(
+                nextCell.start + (nextCell.node?.nodeSize || 0) - 4
+              )
+            )
+          );
+          nextTr.scrollIntoView();
+          nextView.dispatch(nextTr);
+          return true;
+        }
+        return false;
+      },
+      "Shift-Tab": ({ editor }) => {
+        const { tr } = editor.state;
+        if (!isActive(editor.state, Table.name)) {
+          return false;
+        }
+        const previousCell = findPreviousCell(editor.state);
+        if (previousCell) {
+          tr.setSelection(
+            new TextSelection(
+              tr.doc.resolve(previousCell.start),
+              tr.doc.resolve(
+                previousCell.start + (previousCell.node?.nodeSize || 0) - 4
+              )
+            )
+          );
+          tr.scrollIntoView();
+          editor.view.dispatch(tr);
+        }
+        return true;
+      },
     };
   },
 

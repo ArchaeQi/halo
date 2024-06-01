@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
+import org.springframework.web.server.ServerWebInputException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -22,12 +24,14 @@ import run.halo.app.content.ContentRequest;
 import run.halo.app.content.ContentWrapper;
 import run.halo.app.content.Contributor;
 import run.halo.app.content.ListedPost;
+import run.halo.app.content.ListedSnapshotDto;
 import run.halo.app.content.PostQuery;
 import run.halo.app.content.PostRequest;
 import run.halo.app.content.PostService;
 import run.halo.app.content.Stats;
 import run.halo.app.core.extension.content.Category;
 import run.halo.app.core.extension.content.Post;
+import run.halo.app.core.extension.content.Snapshot;
 import run.halo.app.core.extension.content.Tag;
 import run.halo.app.core.extension.service.UserService;
 import run.halo.app.extension.ListOptions;
@@ -94,48 +98,24 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
 
     private Mono<ListedPost> getListedPost(Post post) {
         Assert.notNull(post, "The post must not be null.");
-        return Mono.just(post)
-            .map(p -> {
-                ListedPost listedPost = new ListedPost();
-                listedPost.setPost(p);
-                return listedPost;
-            })
-            .flatMap(lp -> fetchStats(post)
-                .doOnNext(lp::setStats)
-                .thenReturn(lp)
-            )
-            .flatMap(lp -> setTags(post.getSpec().getTags(), lp))
-            .flatMap(lp -> setCategories(post.getSpec().getCategories(), lp))
-            .flatMap(lp -> setContributors(post.getStatusOrDefault().getContributors(), lp))
-            .flatMap(lp -> setOwner(post.getSpec().getOwner(), lp));
-    }
+        var listedPost = new ListedPost().setPost(post);
 
-    private Mono<ListedPost> setTags(List<String> tagNames, ListedPost post) {
-        return listTags(tagNames)
+        var statsMono = fetchStats(post)
+            .doOnNext(listedPost::setStats);
+
+        var tagsMono = listTags(post.getSpec().getTags())
             .collectList()
-            .doOnNext(post::setTags)
-            .map(tags -> post)
-            .switchIfEmpty(Mono.defer(() -> Mono.just(post)));
-    }
+            .doOnNext(listedPost::setTags);
 
-    private Mono<ListedPost> setCategories(List<String> categoryNames, ListedPost post) {
-        return listCategories(categoryNames)
+        var categoriesMono = listCategories(post.getSpec().getCategories())
             .collectList()
-            .doOnNext(post::setCategories)
-            .map(categories -> post)
-            .switchIfEmpty(Mono.defer(() -> Mono.just(post)));
-    }
+            .doOnNext(listedPost::setCategories);
 
-    private Mono<ListedPost> setContributors(List<String> contributorNames, ListedPost post) {
-        return listContributors(contributorNames)
+        var contributorsMono = listContributors(post.getStatusOrDefault().getContributors())
             .collectList()
-            .doOnNext(post::setContributors)
-            .map(contributors -> post)
-            .switchIfEmpty(Mono.defer(() -> Mono.just(post)));
-    }
+            .doOnNext(listedPost::setContributors);
 
-    private Mono<ListedPost> setOwner(String ownerName, ListedPost post) {
-        return userService.getUserOrGhost(ownerName)
+        var ownerMono = userService.getUserOrGhost(post.getSpec().getOwner())
             .map(user -> {
                 Contributor contributor = new Contributor();
                 contributor.setName(user.getMetadata().getName());
@@ -143,8 +123,9 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
                 contributor.setAvatar(user.getSpec().getAvatar());
                 return contributor;
             })
-            .doOnNext(post::setOwner)
-            .thenReturn(post);
+            .doOnNext(listedPost::setOwner);
+        return Mono.when(statsMono, tagsMono, categoriesMono, contributorsMono, ownerMono)
+            .thenReturn(listedPost);
     }
 
     private Flux<Tag> listTags(List<String> tagNames) {
@@ -184,15 +165,11 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
     public Mono<Post> draftPost(PostRequest postRequest) {
         return Mono.defer(
                 () -> {
-                    Post post = postRequest.post();
+                    var post = postRequest.post();
                     return getContextUsername()
-                        .map(username -> {
-                            post.getSpec().setOwner(username);
-                            return post;
-                        })
-                        .defaultIfEmpty(post);
-                }
-            )
+                        .doOnNext(username -> post.getSpec().setOwner(username))
+                        .thenReturn(post);
+                })
             .flatMap(client::create)
             .flatMap(post -> {
                 if (postRequest.content() == null) {
@@ -200,6 +177,7 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
                 }
                 var contentRequest =
                     new ContentRequest(Ref.of(post), post.getSpec().getHeadSnapshot(),
+                        null,
                         postRequest.content().raw(), postRequest.content().content(),
                         postRequest.content().rawType());
                 return draftContent(post.getSpec().getBaseSnapshot(), contentRequest)
@@ -252,13 +230,11 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
                     return client.update(post);
                 });
         }
-        return Mono.defer(() -> updateContent(baseSnapshot, postRequest.contentRequest())
-                .flatMap(contentWrapper -> {
-                    post.getSpec().setHeadSnapshot(contentWrapper.getSnapshotName());
-                    return client.update(post);
-                }))
-            .retryWhen(Retry.backoff(5, Duration.ofMillis(100))
-                .filter(throwable -> throwable instanceof OptimisticLockingFailureException));
+        return updateContent(baseSnapshot, postRequest.contentRequest())
+            .flatMap(contentWrapper -> {
+                post.getSpec().setHeadSnapshot(contentWrapper.getSnapshotName());
+                return client.update(post);
+            });
     }
 
     @Override
@@ -291,23 +267,27 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
     }
 
     @Override
+    public Flux<ListedSnapshotDto> listSnapshots(String name) {
+        return client.fetch(Post.class, name)
+            .flatMapMany(page -> listSnapshotsBy(Ref.of(page)))
+            .map(ListedSnapshotDto::from);
+    }
+
+    @Override
     public Mono<Post> publish(Post post) {
-        return Mono.just(post)
-            .doOnNext(p -> {
-                var spec = post.getSpec();
-                spec.setPublish(true);
-                if (spec.getHeadSnapshot() == null) {
-                    spec.setHeadSnapshot(spec.getBaseSnapshot());
-                }
-                spec.setReleaseSnapshot(spec.getHeadSnapshot());
-            }).flatMap(client::update);
+        var spec = post.getSpec();
+        spec.setPublish(true);
+        if (spec.getHeadSnapshot() == null) {
+            spec.setHeadSnapshot(spec.getBaseSnapshot());
+        }
+        spec.setReleaseSnapshot(spec.getHeadSnapshot());
+        return client.update(post);
     }
 
     @Override
     public Mono<Post> unpublish(Post post) {
-        return Mono.just(post)
-            .doOnNext(p -> p.getSpec().setPublish(false))
-            .flatMap(client::update);
+        post.getSpec().setPublish(false);
+        return client.update(post);
     }
 
     @Override
@@ -315,5 +295,85 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
         return client.get(Post.class, postName)
             .filter(post -> post.getSpec() != null)
             .filter(post -> Objects.equals(username, post.getSpec().getOwner()));
+    }
+
+    @Override
+    public Mono<Post> revertToSpecifiedSnapshot(String postName, String snapshotName) {
+        return client.get(Post.class, postName)
+            .filter(post -> {
+                var head = post.getSpec().getHeadSnapshot();
+                return !StringUtils.equals(head, snapshotName);
+            })
+            .flatMap(post -> {
+                var baseSnapshot = post.getSpec().getBaseSnapshot();
+                return getContent(snapshotName, baseSnapshot)
+                    .map(content -> ContentRequest.builder()
+                        .subjectRef(Ref.of(post))
+                        .headSnapshotName(post.getSpec().getHeadSnapshot())
+                        .content(content.getContent())
+                        .raw(content.getRaw())
+                        .rawType(content.getRawType())
+                        .build()
+                    )
+                    .flatMap(contentRequest -> draftContent(baseSnapshot, contentRequest))
+                    .flatMap(content -> {
+                        post.getSpec().setHeadSnapshot(content.getSnapshotName());
+                        return publishPostWithRetry(post);
+                    });
+            });
+    }
+
+    @Override
+    public Mono<ContentWrapper> deleteContent(String postName, String snapshotName) {
+        return client.get(Post.class, postName)
+            .flatMap(post -> {
+                var headSnapshotName = post.getSpec().getHeadSnapshot();
+                if (StringUtils.equals(headSnapshotName, snapshotName)) {
+                    return updatePostWithRetry(post, record -> {
+                        // update head to release
+                        record.getSpec().setHeadSnapshot(record.getSpec().getReleaseSnapshot());
+                        return record;
+                    });
+                }
+                return Mono.just(post);
+            })
+            .flatMap(post -> {
+                var baseSnapshotName = post.getSpec().getBaseSnapshot();
+                var releaseSnapshotName = post.getSpec().getReleaseSnapshot();
+                if (StringUtils.equals(releaseSnapshotName, snapshotName)) {
+                    return Mono.error(new ServerWebInputException(
+                        "The snapshot to delete is the release snapshot, please"
+                            + " revert to another snapshot first."));
+                }
+                if (StringUtils.equals(baseSnapshotName, snapshotName)) {
+                    return Mono.error(
+                        new ServerWebInputException("The first snapshot cannot be deleted."));
+                }
+                return client.fetch(Snapshot.class, snapshotName)
+                    .flatMap(client::delete)
+                    .flatMap(deleted -> restoredContent(baseSnapshotName, deleted));
+            });
+    }
+
+    private Mono<Post> updatePostWithRetry(Post post, UnaryOperator<Post> func) {
+        return client.update(func.apply(post))
+            .onErrorResume(OptimisticLockingFailureException.class,
+                e -> Mono.defer(() -> client.get(Post.class, post.getMetadata().getName())
+                        .map(func)
+                        .flatMap(client::update)
+                    )
+                    .retryWhen(Retry.backoff(8, Duration.ofMillis(100))
+                        .filter(OptimisticLockingFailureException.class::isInstance))
+            );
+    }
+
+    Mono<Post> publishPostWithRetry(Post post) {
+        return publish(post)
+            .onErrorResume(OptimisticLockingFailureException.class,
+                e -> Mono.defer(() -> client.get(Post.class, post.getMetadata().getName())
+                        .flatMap(this::publish))
+                    .retryWhen(Retry.backoff(8, Duration.ofMillis(100))
+                        .filter(OptimisticLockingFailureException.class::isInstance))
+            );
     }
 }

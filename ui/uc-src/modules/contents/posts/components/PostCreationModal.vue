@@ -17,6 +17,7 @@ const props = withDefaults(
     title: string;
     content: Content;
     publish?: boolean;
+    post: Post;
   }>(),
   {
     publish: false,
@@ -28,10 +29,10 @@ const emit = defineEmits<{
   (event: "success", post: Post): void;
 }>();
 
-const modal = ref();
+const modal = ref<InstanceType<typeof VModal> | null>(null);
 
 const { mutate, isLoading } = useMutation({
-  mutationKey: ["create-post"],
+  mutationKey: ["uc:create-post"],
   mutationFn: async ({ data }: { data: PostFormState }) => {
     const post: Post = {
       apiVersion: "content.halo.run/v1alpha1",
@@ -83,7 +84,7 @@ const { mutate, isLoading } = useMutation({
     }
 
     emit("success", data);
-    modal.value.close();
+    modal.value?.close();
   },
   onError() {
     if (props.publish) {
@@ -107,7 +108,17 @@ function onSubmit(data: PostFormState) {
     centered
     @close="emit('close')"
   >
-    <PostSettingForm @submit="onSubmit" />
+    <PostSettingForm
+      :form-state="{
+        title: props.post.spec.title,
+        slug: props.post.spec.slug,
+        allowComment: props.post.spec.allowComment,
+        visible: props.post.spec.visible,
+        pinned: props.post.spec.pinned,
+        excerptAutoGenerate: props.post.spec.excerpt.autoGenerate,
+      }"
+      @submit="onSubmit"
+    />
 
     <template #footer>
       <VSpace>
@@ -122,7 +133,7 @@ function onSubmit(data: PostFormState) {
               : $t("core.common.buttons.save")
           }}
         </VButton>
-        <VButton type="default" @click="modal.close()">
+        <VButton type="default" @click="modal?.close()">
           {{ $t("core.common.buttons.close") }}
         </VButton>
       </VSpace>

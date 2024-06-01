@@ -6,6 +6,8 @@ core:
         placeholder: Username
       password:
         placeholder: Password
+      remember_me:
+        label: Remember Me
     operations:
       submit:
         toast_success: Login successful
@@ -40,7 +42,7 @@ core:
             buttons:
               sending: sending
               send: Send Code
-              countdown: "resend after {timer} seconds"
+              countdown: resend after {timer} seconds
             toast_success: verification code sent
             toast_email_empty: please enter your email address
       password:
@@ -86,13 +88,13 @@ core:
         plugins: Plugins
         users: Users
         settings: Settings
-        actuator: Actuator
+        overview: Overview
         backup: Backup
         tools: Tools
     operations:
       logout:
         tooltip: Logout
-        title: Are you sure you want to log out?
+        title: Logout
       profile:
         tooltip: Profile
       visit_homepage:
@@ -155,14 +157,14 @@ core:
               title: New User
             refresh_search_engine:
               title: Refresh Search Engine
-              dialog_title: Do you want to refresh the search engine index?
+              dialog_title: Refresh the search engine index
               dialog_content: >-
                 This operation will recreate search engine indexes for all
                 published posts.
               success_message: Refresh search engine index successfully.
             evict_page_cache:
               title: Refresh Page Cache
-              dialog_title: Do you want to refresh the page cache?
+              dialog_title: Refresh the page cache
               dialog_content: This operation will clear the cache for all pages.
               success_message: Refresh page cache successfully.
         user_stats:
@@ -182,12 +184,12 @@ core:
       message: You can try to refresh or create a new post.
     operations:
       delete:
-        title: Are you sure you want to delete this post?
+        title: Delete post
         description: >-
           This operation will move the post to the recycle bin, and it can be
           restored from the recycle bin later.
       delete_in_batch:
-        title: Are you sure you want to delete the selected posts?
+        title: Delete the selected posts
         description: >-
           This operation will move the posts to the recycle bin, and it can be
           restored from the recycle bin later.
@@ -196,6 +198,7 @@ core:
         items:
           published: Published
           draft: Draft
+          scheduling: Scheduling publish
       visible:
         label: Visible
         result: "Visible: {visible}"
@@ -217,12 +220,18 @@ core:
           publish_time_asc: Earliest Published
           create_time_desc: Latest Created
           create_time_asc: Earliest Created
+          visit_desc: Most Visits
+          comment_desc: Most Comments
+          last_modify_time_desc: Recently Updated
+          last_modify_time_asc: Earliest Updated
     list:
       fields:
         categories: "Categories:"
         visits: "{visits} Visits"
         comments: "{comments} Comments"
         pinned: Pinned
+        schedule_publish:
+          tooltip: Schedule publish
     settings:
       title: Settings
       groups:
@@ -252,10 +261,20 @@ core:
           label: Visible
         publish_time:
           label: Publish Time
+          help:
+            schedule_publish: Schedule a timed task and publish it at {datetime}
         template:
           label: Template
         cover:
           label: Cover
+    tag:
+      filters:
+        sort:
+          items:
+            create_time_desc: Latest Created
+            create_time_asc: Earliest Created
+            display_name_desc: Descending order by tag name
+            display_name_asc: Ascending order by tag name
   deleted_post:
     title: Deleted Posts
     empty:
@@ -263,20 +282,22 @@ core:
       message: You can try to refresh or go back to the previous page.
     operations:
       delete:
-        title: Are you sure you want to permanently delete this post?
+        title: Delete post
         description: After deletion, it will not be possible to recover.
       delete_in_batch:
-        title: Are you sure you want to permanently delete the selected posts?
+        title: Delete the selected posts
         description: After deletion, it will not be possible to recover.
       recovery:
-        title: Do you want to restore this post?
+        title: Restore post
         description: This operation will restore the post to its state before deletion.
       recovery_in_batch:
-        title: Are you sure you want to restore the selected posts?
+        title: Restore the selected posts
         description: This operation will restore the posts to its state before deletion.
   post_editor:
     title: Post edit
     untitled: Untitled post
+    actions:
+      snapshots: Snapshots
   post_tag:
     title: Post tags
     header:
@@ -286,10 +307,12 @@ core:
       message: You can try to refresh or create a new tag.
     operations:
       delete:
-        title: Are you sure you want to delete this tag?
+        title: Delete tag
         description: >-
           After deleting this tag, the association with the corresponding
           article will be removed. This operation cannot be undone.
+      delete_in_batch:
+        title: Delete the selected tags
     editing_modal:
       titles:
         update: Update post tag
@@ -319,7 +342,7 @@ core:
       message: You can try to refresh or create a new category.
     operations:
       delete:
-        title: Are you sure you want to delete this category?
+        title: Delete category
         description: >-
           After deleting this category, the association with corresponding
           articles will be removed. This operation cannot be undone.
@@ -358,12 +381,12 @@ core:
       message: You can try to refresh or create a new page.
     operations:
       delete:
-        title: Are you sure you want to delete this page?
+        title: Delete page
         description: >-
           This operation will move the page to the recycle bin, and it can be
           restored from the recycle bin later.
       delete_in_batch:
-        title: Are you sure you want to delete the selected pages?
+        title: Delete the selected pages
         description: >-
           This operation will move the pages to the recycle bin, and it can be
           restored from the recycle bin later.
@@ -427,20 +450,22 @@ core:
       message: You can try to refresh or go back to the previous page.
     operations:
       delete:
-        title: Are you sure you want to permanently delete this page?
+        title: Delete page
         description: After deletion, it will not be possible to recover.
       delete_in_batch:
-        title: Are you sure you want to permanently delete the selected pages?
+        title: Delete the selected pages
         description: After deletion, it will not be possible to recover.
       recovery:
-        title: Do you want to restore this page?
+        title: Restore page
         description: This operation will restore the page to its state before deletion.
       recovery_in_batch:
-        title: Are you sure you want to restore the selected pages?
+        title: Restore the selected pages
         description: This operation will restore the pages to its state before deletion.
   page_editor:
     title: Page edit
     untitled: Untitled page
+    actions:
+      snapshots: Snapshots
   comment:
     title: Comments
     empty:
@@ -452,12 +477,12 @@ core:
       new: New Reply
     operations:
       delete_comment:
-        title: Are you sure you want to delete this comment?
+        title: Delete comment
         description: >-
           All replies under the comments will be deleted at the same time, and
           this operation cannot be undone.
       delete_comment_in_batch:
-        title: Are you sure you want to delete the selected comments?
+        title: Delete the selected comments
         description: >-
           All replies under the comments will be deleted at the same time, and
           this operation cannot be undone.
@@ -470,7 +495,7 @@ core:
           Are you sure you want to approve all replies to this comment for
           review?
       delete_reply:
-        title: Are you sure you want to delete this reply?
+        title: Delete reply
       approve_reply:
         button: Approve
       reply:
@@ -524,9 +549,9 @@ core:
         upload: Upload Attachment
     operations:
       delete:
-        title: Are you sure you want to delete this attachment?
+        title: Delete attachment
       delete_in_batch:
-        title: Are you sure you want to delete the selected attachments?
+        title: Delete the selected attachments
       deselect_items:
         button: Deselect items
       move:
@@ -545,10 +570,19 @@ core:
           create_time_asc: Earliest uploaded
           size_desc: Descending order by file size
           size_asc: Ascending order by file size
+          display_name_asc: Ascending order by display name
+          display_name_desc: Descending order by display name
       view_type:
         items:
           grid: Grid Mode
           list: List Mode
+      accept:
+        label: Type
+        items:
+          image: Image
+          audio: Audio
+          video: Video
+          file: File
     detail_modal:
       title: "Attachment: {display_name}"
       fields:
@@ -581,7 +615,7 @@ core:
           button: Rename
         delete:
           button: And move attachment to ungrouped
-          title: Are you sure you want to delete this group?
+          title: Delete attachment group
           description: >-
             The group will be deleted, and the attachments under the group will
             be moved to ungrouped. This operation cannot be undone.
@@ -590,7 +624,7 @@ core:
             ungrouped
         delete_with_attachments:
           button: Also delete attachments
-          title: Are you sure you want to delete this group?
+          title: Delete attachment group
           description: >-
             Deleting the group and all attachments within it, this action cannot
             be undone.
@@ -606,7 +640,7 @@ core:
           refreshing or creating a new policy.
       operations:
         delete:
-          title: Are you sure you want to delete this policy?
+          title: Delete attachment policy
           description: There are no uploaded attachments under the current policy.
         can_not_delete:
           title: Deletion failed
@@ -655,34 +689,38 @@ core:
         switch: Switch Theme
     operations:
       active:
-        title: Are you sure to active the current theme?
+        title: Active theme
         toast_success: Active theme successful
       reset:
-        title: Are you sure you want to reset all configurations of the theme?
+        title: Reset configurations of the theme
         description: >-
           This operation will delete the saved configuration and reset it to
           default settings.
         toast_success: Reset configuration successful
       reload:
         button: Reload
-        title: Are you sure you want to reload all configurations of the theme?
+        title: Reload configurations of the theme
         description: >-
           This operation will only reload the theme configuration and settings
           form definition, and will not delete any saved configurations.
         toast_success: Reload configuration successful
       uninstall:
-        title: Are you sure you want to uninstall this theme?
+        title: Uninstall theme
       uninstall_and_delete_config:
         button: Uninstall and delete config
-        title: >-
-          Are you sure you want to uninstall this theme and its corresponding
-          settings?
+        title: Uninstall this theme and its corresponding settings
       remote_download:
         title: Remote download address detected, do you want to download?
         description: "Please carefully verify whether this address can be trusted: {url}"
       existed_during_installation:
         title: The theme already exists.
         description: The currently installed theme already exists, do you want to upgrade?
+      clear_templates_cache:
+        button: Clear templates cache
+        title: Clear templates cache
+        description: >-
+          This feature allows you to refresh the cache to view the latest web
+          results after modifying template files at runtime.
     list_modal:
       tabs:
         installed: Installed
@@ -708,12 +746,15 @@ core:
     detail:
       fields:
         author: Author
-        website: Website
+        homepage: Website
         repo: Source Repository
         version: Version
         requires: Requires
         storage_location: Storage Location
         plugin_requires: Plugin Requires
+        description: Description
+        license: License
+        issues: Issues feedback
     settings:
       title: Theme settings
     custom_templates:
@@ -731,12 +772,12 @@ core:
         button: Set as primary menu
         toast_success: Setting successful
       delete_menu:
-        title: Are you sure you want to delete this menu?
+        title: Delete menu
         description: >-
           All menu items under this menu will be deleted at the same time, and
           this operation cannot be undone.
       delete_menu_item:
-        title: Are you sure you want to delete this menu item?
+        title: Delete menu item
         description: >-
           All sub-menu items will be deleted at the same time, and cannot be
           restored after deletion.
@@ -797,33 +838,29 @@ core:
         install: Install Plugin
     operations:
       reset:
-        title: Are you sure you want to reset all configurations of the plugin?
+        title: Reset configurations of the plugin
         description: >-
           This operation will delete the saved configuration and reset it to
           default settings.
         toast_success: Reset configuration successfully
       uninstall:
-        title: Are you sure you want to uninstall this plugin?
+        title: Uninstall plugin
       uninstall_in_batch:
-        title: Are you sure you want to uninstall these plugin?
+        title: Uninstall the selected plugins
       uninstall_and_delete_config:
         button: Uninstall and delete config
-        title: >-
-          Are you sure you want to uninstall this plugin and its corresponding
-          configuration?
+        title: Uninstall plugin and its corresponding configuration
       uninstall_and_delete_config_in_batch:
         button: Uninstall and delete config
-        title: >-
-          Are you sure you want to uninstall these plugin and its corresponding
-          configuration?
+        title: Uninstall the selected plugins and its corresponding configuration
       uninstall_when_enabled:
         confirm_text: Stop running and uninstall
         description: >-
           The current plugin is still in the enabled state and will be
           uninstalled after it stops running. This operation cannot be undone.
       change_status_in_batch:
-        activate_title: Are you sure you want to activate these plugins?
-        inactivate_title: Are you sure you want to inactivate these plugins?
+        activate_title: Activate the selected plugins
+        inactivate_title: Inactivate the selected plugins
       remote_download:
         title: Remote download address detected, do you want to download?
         description: "Please carefully verify whether this address can be trusted: {url}"
@@ -860,7 +897,6 @@ core:
       header:
         title: Plugin information
       fields:
-        display_name: Display Name
         description: Description
         version: Version
         requires: Requires
@@ -868,6 +904,13 @@ core:
         license: License
         role_templates: Role Templates
         last_starttime: Last Start Time
+        homepage: Homepage
+        repo: Source Repository
+        load_location: Storage Location
+        issues: Issues feedback
+      operations:
+        view_conditions:
+          button: View recent conditions
     loader:
       toast:
         entry_load_failed: Failed to load plugins entry file
@@ -876,6 +919,14 @@ core:
       editor:
         providers:
           default: Default Editor
+    conditions_modal:
+      title: Recent conditions
+      fields:
+        type: Type
+        status: Status
+        reason: Reason
+        message: Message
+        last_transition_time: Last transition time
   user:
     title: Users
     actions:
@@ -888,9 +939,9 @@ core:
         try refreshing or creating a new user.
     operations:
       delete:
-        title: Are you sure you want to delete this user?
+        title: Delete user
       delete_in_batch:
-        title: Are you sure you want to delete the selected users?
+        title: Delete the selected users
       update_profile:
         title: Update profile
       change_password:
@@ -915,7 +966,10 @@ core:
       fields:
         username:
           label: Username
-          validation: Please enter a valid username.
+          validation: >-
+            Can only contain numbers, lowercase letters, periods (.), and
+            hyphens (-), and cannot start or end with a period (.) or hyphen
+            (-).
         display_name:
           label: Display name
         email:
@@ -958,6 +1012,10 @@ core:
         bio: Bio
         creation_time: Creation time
         identity_authentication: Identity authentication
+        email_verified:
+          tooltip: Verified
+        email_not_verified:
+          tooltip: Not verified
   role:
     title: Roles
     common:
@@ -970,7 +1028,7 @@ core:
         provided_by_plugin: Provided by {plugin}
     operations:
       delete:
-        title: Are you sure you want to delete this role?
+        title: Delete role
         description: >-
           After the role is deleted, the associated users will have their role
           bindings removed and this operation cannot be undone.
@@ -1013,9 +1071,9 @@ core:
       setting: Settings
     operations:
       enable:
-        title: Are you sure you want to enable this identity authentication method?
+        title: Enable identity authentication method
       disable:
-        title: Are you sure you want to disable this identity authentication method?
+        title: Disable identity authentication method
       disable_privileged:
         tooltip: The authentication method reserved by the system cannot be disabled
     detail:
@@ -1051,7 +1109,7 @@ core:
           button: Bind
         unbind:
           button: Unbind
-          title: Are you sure you want to unbind the login method for {display_name}?
+          title: Unbind the login method for {display_name}
       email_not_set:
         description: >-
           Your email address has not been set yet. Click the button below to set
@@ -1062,6 +1120,8 @@ core:
           Your email address has not been verified yet, click the button below
           to verify it
         title: Verify email
+      email_verified:
+        tooltip: Verified
     pat:
       operations:
         delete:
@@ -1113,7 +1173,10 @@ core:
       fields:
         username:
           label: Username
-          validation: Please enter a valid username.
+          validation: >-
+            Can only contain numbers, lowercase letters, periods (.), and
+            hyphens (-), and cannot start or end with a period (.) or hyphen
+            (-).
         display_name:
           label: Display name
         email:
@@ -1131,6 +1194,8 @@ core:
           label: New password
         confirm_password:
           label: Confirm password
+        old_password:
+          label: Old password
     email_verify_modal:
       fields:
         code:
@@ -1139,6 +1204,9 @@ core:
           label: Email address
         new_email:
           label: New email address
+        password:
+          label: Password
+          help: The login password for the current account
       operations:
         send_code:
           buttons:
@@ -1169,8 +1237,8 @@ core:
         title: Delete
   setting:
     title: Settings
-  actuator:
-    title: Actuator
+  overview:
+    title: Overview
     actions:
       copy:
         toast_browser_not_supported: The current browser does not support copying
@@ -1241,7 +1309,7 @@ core:
         button: Download and restore
       restore_by_backup:
         button: Restore
-        title: Are you sure you want to restore from this backup?
+        title: Restore from this backup
     list:
       phases:
         pending: Pending
@@ -1367,7 +1435,7 @@ core:
     Cache Management: Cache
     Cache Manage: Cache Manage
     Notification Configuration: Notification Configuration
-    Configure Notifier: Configure Notifier
+    role-template-notifier-config: Configure Notifier
     Post Attachment Manager: Allow images to be uploaded in posts
     Post Author: Allows you to manage your own posts
     Post Contributor: Contributions allowed
@@ -1379,6 +1447,9 @@ core:
       custom_fields:
         label: Custom
         validation: The current Key is already in use
+      buttons:
+        expand: View more
+        collapse: Collapse
     default_editor:
       tabs:
         toc:
@@ -1397,11 +1468,10 @@ core:
         placeholder:
           options:
             placeholder: Enter / to select input type.
-        image:
-          upload:
-            error: Upload failed
-            click_retry: Click to retry
-            loading: Loading
+        upload:
+          error: Upload failed
+          click_retry: Click to retry
+          loading: Loading
           attachment:
             title: Attachment Library
           permalink:
@@ -1413,6 +1483,7 @@ core:
       toolbox:
         attachment: Attachment
         show_hide_sidebar: Show/Hide Sidebar
+      title_placeholder: Please enter the title
     global_search:
       placeholder: Enter keywords to search
       no_results: No search results
@@ -1449,7 +1520,7 @@ core:
       cropper_modal:
         title: Crop Avatar
       remove:
-        title: Are you sure you want to delete the avatar?
+        title: Delete avatar
       tooltips:
         upload: Upload
         zoom_in: Zoom In
@@ -1460,6 +1531,16 @@ core:
     editor_provider_selector:
       tooltips:
         disallow: The content format is different and cannot be switched
+    uppy:
+      image_editor:
+        revert: Revert
+        rotate: Rotate
+        zoom_in: Zoom in
+        zoom_out: Zoom out
+        flip_horizontal: Flip horizontal
+        aspect_ratio_square: Crop square
+        aspect_ratio_landscape: Crop landscape (16:9)
+        aspect_ratio_portrait: Crop portrait (9:16)
   composables:
     content_cache:
       toast_recovered: Recovered unsaved content from cache
@@ -1470,6 +1551,10 @@ core:
       creation_label: Create {text} tag
     validation:
       trim: Please remove the leading and trailing spaces
+    verification_form:
+      no_action_defined: "{label} interface not defined"
+      verify_success: "{label} successful"
+      verify_failed: "{label} failed"
   common:
     buttons:
       save: Save
@@ -1508,6 +1593,7 @@ core:
       verify: Verify
       modify: Modify
       access: Access
+      schedule_publish: Schedule publish
     radio:
       "yes": "Yes"
       "no": "No"
@@ -1568,6 +1654,7 @@ core:
       not_activated: Not activated
       installed: Installed
       not_installed: Not installed
+      starting_up: Starting
     text:
       none: None
       tip: Tip
@@ -1602,6 +1689,7 @@ core:
       reset:
         button: Reset Password
         toast_success: Reset successful
+    title: Reset password
   reset_password:
     fields:
       username:
@@ -1614,6 +1702,7 @@ core:
         toast_success: >-
           If your username and email address match, we will send an email to
           your email address.
+    title: Reset password
   tool:
     title: Tools
     empty:
@@ -1621,3 +1710,57 @@ core:
       message: >-
         There are currently no tools available, and system tools may be provided
         by plugins
+  post_snapshots:
+    operations:
+      revert:
+        button: Revert
+        title: Revert snapshot
+        description: >-
+          Are you sure you want to restore this snapshot? This operation will
+          create a new snapshot based on this one and publish it.
+        toast_success: Reverted successfully
+      delete:
+        title: Delete snapshot
+        description: >-
+          Are you sure you want to delete this snapshot? This operation is
+          irreversible.
+      cleanup:
+        button: Cleanup
+        title: Cleanup snapshots
+        description: >-
+          Are you sure you want to delete all unused snapshots? Only published,
+          base version, and draft versions will be retained.
+        toast_empty: There are no snapshots to be cleaned up
+        toast_success: Cleanup completed
+    status:
+      released: Released
+      draft: Draft
+      base: Base
+    title: Post snapshots
+  page_snapshots:
+    operations:
+      revert:
+        button: Revert
+        title: Revert snapshot
+        description: >-
+          Are you sure you want to restore this snapshot? This operation will
+          create a new snapshot based on this one and publish it.
+        toast_success: Reverted successfully
+      delete:
+        title: Delete snapshot
+        description: >-
+          Are you sure you want to delete this snapshot? This operation is
+          irreversible.
+      cleanup:
+        button: Cleanup
+        title: Cleanup snapshots
+        description: >-
+          Are you sure you want to delete all unused snapshots? Only published,
+          base version, and draft versions will be retained.
+        toast_empty: There are no snapshots to be cleaned up
+        toast_success: Cleanup completed
+    status:
+      released: Released
+      draft: Draft
+      base: Base
+    title: Page snapshots

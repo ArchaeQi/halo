@@ -2,7 +2,9 @@ package run.halo.app.plugin;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.pf4j.CompoundPluginLoader;
@@ -157,4 +159,19 @@ public class HaloPluginManager extends DefaultPluginManager implements SpringPlu
         return sharedContext.get();
     }
 
+    @Override
+    public List<PluginWrapper> getDependents(String pluginId) {
+        var dependents = new ArrayList<PluginWrapper>();
+        var stack = new Stack<String>();
+        dependencyResolver.getDependents(pluginId).forEach(stack::push);
+        while (!stack.isEmpty()) {
+            var dependent = stack.pop();
+            var pluginWrapper = getPlugin(dependent);
+            if (pluginWrapper != null) {
+                dependents.add(pluginWrapper);
+                dependencyResolver.getDependents(dependent).forEach(stack::push);
+            }
+        }
+        return dependents;
+    }
 }

@@ -5,7 +5,6 @@ import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static org.springdoc.core.fn.builders.requestbody.Builder.requestBodyBuilder;
 import static org.springdoc.webflux.core.fn.SpringdocRouteBuilder.route;
 import static org.springframework.web.reactive.function.server.RequestPredicates.path;
-import static run.halo.app.extension.router.QueryParamBuildUtil.buildParametersFromType;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import java.util.Objects;
@@ -20,6 +19,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ServerWebInputException;
 import reactor.core.publisher.Mono;
 import run.halo.app.content.Content;
+import run.halo.app.content.ContentUpdateParam;
 import run.halo.app.content.ListedPost;
 import run.halo.app.content.PostQuery;
 import run.halo.app.content.PostRequest;
@@ -65,7 +65,7 @@ public class UcPostEndpoint implements CustomEndpoint {
                                 .tag(tag)
                                 .response(responseBuilder().implementation(
                                     ListResult.generateGenericClass(ListedPost.class)));
-                            buildParametersFromType(builder, PostQuery.class);
+                            PostQuery.buildParameters(builder);
                         }
                     )
                     .POST(this::createMyPost, builder -> builder.operationId("CreateMyPost")
@@ -259,7 +259,6 @@ public class UcPostEndpoint implements CustomEndpoint {
                     var spec = post.getSpec();
                     spec.setOwner(oldSpec.getOwner());
                     spec.setPublish(oldSpec.getPublish());
-                    spec.setPublishTime(oldSpec.getPublishTime());
                     spec.setHeadSnapshot(oldSpec.getHeadSnapshot());
                     spec.setBaseSnapshot(oldSpec.getBaseSnapshot());
                     spec.setReleaseSnapshot(oldSpec.getReleaseSnapshot());
@@ -282,7 +281,7 @@ public class UcPostEndpoint implements CustomEndpoint {
                     }
                     post.getSpec().setOwner(username);
                 }))
-            .map(post -> new PostRequest(post, getContent(post)))
+            .map(post -> new PostRequest(post, ContentUpdateParam.from(getContent(post))))
             .flatMap(postService::draftPost);
         return ServerResponse.ok().body(createdPost, Post.class);
     }

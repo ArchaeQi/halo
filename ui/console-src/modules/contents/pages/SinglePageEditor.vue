@@ -1,30 +1,31 @@
 <script lang="ts" setup>
 import {
-  VPageHeader,
-  IconPages,
-  IconSettings,
-  IconSendPlaneFill,
-  VSpace,
-  VButton,
-  IconSave,
-  Toast,
   Dialog,
   IconEye,
+  IconHistoryLine,
+  IconPages,
+  IconSave,
+  IconSendPlaneFill,
+  IconSettings,
+  Toast,
+  VButton,
+  VPageHeader,
+  VSpace,
 } from "@halo-dev/components";
 import SinglePageSettingModal from "./components/SinglePageSettingModal.vue";
 import type { SinglePage, SinglePageRequest } from "@halo-dev/api-client";
 import {
   computed,
+  type ComputedRef,
   nextTick,
   onMounted,
   provide,
   ref,
   toRef,
-  type ComputedRef,
+  watch,
 } from "vue";
 import { apiClient } from "@/utils/api-client";
 import { useRouteQuery } from "@vueuse/router";
-import { cloneDeep } from "lodash-es";
 import { useRouter } from "vue-router";
 import { randomUUID } from "@/utils/id";
 import { useContentCache } from "@/composables/use-content-cache";
@@ -69,7 +70,7 @@ const handleChangeEditorProvider = async (provider: EditorProvider) => {
 };
 
 // SinglePage form
-const initialFormState: SinglePageRequest = {
+const formState = ref<SinglePageRequest>({
   page: {
     spec: {
       title: "",
@@ -101,12 +102,18 @@ const initialFormState: SinglePageRequest = {
     content: "",
     rawType: "HTML",
   },
-};
-
-const formState = ref<SinglePageRequest>(cloneDeep(initialFormState));
+});
 const saving = ref(false);
 const publishing = ref(false);
 const settingModal = ref(false);
+
+const isTitleChanged = ref(false);
+watch(
+  () => formState.value.page.spec.title,
+  (newValue, oldValue) => {
+    isTitleChanged.value = newValue !== oldValue;
+  }
+);
 
 const isUpdateMode = computed(() => {
   return !!formState.value.page.metadata.creationTimestamp;
@@ -143,15 +150,23 @@ const handleSave = async (options?: { mute?: boolean }) => {
     }
 
     if (isUpdateMode.value) {
+      if (isTitleChanged.value) {
+        formState.value.page = (
+          await singlePageUpdateMutate(formState.value.page)
+        ).data;
+      }
+
       const { data } = await apiClient.singlePage.updateSinglePageContent({
         name: formState.value.page.metadata.name,
         content: formState.value.content,
       });
 
       formState.value.page = data;
+      isTitleChanged.value = false;
     } else {
       // Clear new page content cache
       handleClearCache();
+
       const { data } = await apiClient.singlePage.draftSinglePage({
         singlePageRequest: formState.value,
       });
@@ -183,6 +198,12 @@ const handlePublish = async () => {
     if (isUpdateMode.value) {
       const { name: singlePageName } = formState.value.page.metadata;
       const { permalink } = formState.value.page.status || {};
+
+      if (isTitleChanged.value) {
+        formState.value.page = (
+          await singlePageUpdateMutate(formState.value.page)
+        ).data;
+      }
 
       await apiClient.singlePage.updateSinglePageContent({
         name: singlePageName,
@@ -224,6 +245,7 @@ const handlePublishClick = () => {
   if (isUpdateMode.value) {
     handlePublish();
   } else {
+    // Set editor title to page
     settingModal.value = true;
   }
 };
@@ -250,7 +272,8 @@ const handleFetchContent = async () => {
     const provider =
       preferredEditor ||
       editorProviders.value.find(
-        (provider) => provider.rawType === data.rawType
+        (provider) =>
+          provider.rawType.toLowerCase() === data.rawType?.toLowerCase()
       );
     if (provider) {
       currentEditorProvider.value = provider;
@@ -282,7 +305,7 @@ const handleFetchContent = async () => {
 // SinglePage settings
 const handleOpenSettingModal = async () => {
   const { data: latestSinglePage } =
-    await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+    await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
       name: formState.value.page.metadata.name,
     });
   formState.value.page = latestSinglePage;
@@ -296,7 +319,6 @@ const onSettingSaved = (page: SinglePage) => {
   }
 
   formState.value.page = page;
-  settingModal.value = false;
 
   if (!isUpdateMode.value) {
     handleSave();
@@ -305,14 +327,13 @@ const onSettingSaved = (page: SinglePage) => {
 
 const onSettingPublished = (singlePage: SinglePage) => {
   formState.value.page = singlePage;
-  settingModal.value = false;
   handlePublish();
 };
 
 onMounted(async () => {
   if (routeQueryName.value) {
     const { data: singlePage } =
-      await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+      await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
         name: routeQueryName.value,
       });
     formState.value.page = singlePage;
@@ -403,19 +424,20 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
 
 <template>
   <SinglePageSettingModal
-    v-model:visible="settingModal"
+    v-if="settingModal"
     :single-page="formState.page"
     :publish-support="!isUpdateMode"
     :only-emit="!isUpdateMode"
+    @close="settingModal = false"
     @saved="onSettingSaved"
     @published="onSettingPublished"
   />
 
   <UrlPreviewModal
-    v-if="isUpdateMode"
-    v-model:visible="previewModal"
+    v-if="previewModal"
     :title="formState.page.spec.title"
     :url="`/preview/singlepages/${formState.page.metadata.name}`"
+    @close="previewModal = false"
   />
 
   <VPageHeader :title="$t('core.page.title')">
@@ -430,6 +452,22 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
           :allow-forced-select="!isUpdateMode"
           @select="handleChangeEditorProvider"
         />
+        <VButton
+          v-if="isUpdateMode"
+          size="sm"
+          type="default"
+          @click="
+            $router.push({
+              name: 'SinglePageSnapshots',
+              query: { name: routeQueryName },
+            })
+          "
+        >
+          <template #icon>
+            <IconHistoryLine class="h-full w-full" />
+          </template>
+          {{ $t("core.page_editor.actions.snapshots") }}
+        </VButton>
         <VButton
           size="sm"
           type="default"
@@ -477,6 +515,7 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
       v-if="currentEditorProvider"
       v-model:raw="formState.content.raw"
       v-model:content="formState.content.content"
+      v-model:title="formState.page.spec.title"
       :upload-image="handleUploadImage"
       class="h-full"
       @update="handleSetContentCache"

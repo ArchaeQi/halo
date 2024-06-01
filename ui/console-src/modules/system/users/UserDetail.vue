@@ -1,40 +1,36 @@
 <script lang="ts" setup>
+import UserAvatar from "@/components/user-avatar/UserAvatar.vue";
+import { usePluginModuleStore } from "@/stores/plugin";
+import { useUserStore } from "@/stores/user";
 import { apiClient } from "@/utils/api-client";
+import { usePermission } from "@/utils/permission";
 import {
   VButton,
-  VTabbar,
   VDropdown,
   VDropdownItem,
+  VTabbar,
 } from "@halo-dev/components";
-import { computed, provide, ref, type Ref } from "vue";
+import type { UserTab } from "@halo-dev/console-shared";
+import { useQuery } from "@tanstack/vue-query";
+import { useRouteQuery } from "@vueuse/router";
+import {
+  computed,
+  markRaw,
+  onMounted,
+  provide,
+  ref,
+  toRaw,
+  type Ref,
+} from "vue";
+import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
-import type { DetailedUser } from "@halo-dev/api-client";
 import UserEditingModal from "./components/UserEditingModal.vue";
 import UserPasswordChangeModal from "./components/UserPasswordChangeModal.vue";
-import { usePermission } from "@/utils/permission";
-import { useQuery } from "@tanstack/vue-query";
-import { useI18n } from "vue-i18n";
-import UserAvatar from "@/components/user-avatar/UserAvatar.vue";
-import type { Raw } from "vue";
-import type { Component } from "vue";
-import { markRaw } from "vue";
 import DetailTab from "./tabs/Detail.vue";
-import { useRouteQuery } from "@vueuse/router";
-import { useUserStore } from "@/stores/user";
 
 const { currentUserHasPermission } = usePermission();
 const { t } = useI18n();
 const { currentUser } = useUserStore();
-
-interface UserTab {
-  id: string;
-  label: string;
-  component: Raw<Component>;
-  props?: Record<string, unknown>;
-  permissions?: string[];
-  priority: number;
-  hidden?: boolean;
-}
 
 const editingModal = ref(false);
 const passwordChangeModal = ref(false);
@@ -56,38 +52,71 @@ const {
   enabled: computed(() => !!params.name),
 });
 
-provide<Ref<DetailedUser | undefined>>("user", user);
-
-const tabs: UserTab[] = [
+const tabs = ref<UserTab[]>([
   {
     id: "detail",
     label: t("core.user.detail.tabs.detail"),
     component: markRaw(DetailTab),
     priority: 10,
   },
-];
+]);
 
-const activeTab = useRouteQuery<string>("tab", tabs[0].id, {
+// Collect user:detail:tabs:create extension points
+const { pluginModules } = usePluginModuleStore();
+
+onMounted(async () => {
+  for (const pluginModule of pluginModules) {
+    try {
+      const callbackFunction =
+        pluginModule?.extensionPoints?.["user:detail:tabs:create"];
+      if (typeof callbackFunction !== "function") {
+        continue;
+      }
+
+      const providers = await callbackFunction();
+
+      tabs.value.push(...providers);
+    } catch (error) {
+      console.error(`Error processing plugin module:`, pluginModule, error);
+    }
+  }
+});
+
+const activeTab = useRouteQuery<string>("tab", tabs.value[0].id, {
   mode: "push",
 });
 
 provide<Ref<string>>("activeTab", activeTab);
 
 const tabbarItems = computed(() => {
-  return tabs.map((tab) => ({ id: tab.id, label: tab.label }));
+  return toRaw(tabs)
+    .value.sort((a, b) => a.priority - b.priority)
+    .map((tab) => ({
+      id: tab.id,
+      label: tab.label,
+    }));
 });
 
 function handleRouteToUC() {
   window.location.href = "/uc";
 }
+
+function onPasswordChangeModalClose() {
+  passwordChangeModal.value = false;
+  refetch();
+}
 </script>
 <template>
-  <UserEditingModal v-model:visible="editingModal" :user="user?.user" />
+  <UserEditingModal
+    v-if="editingModal && user?.user"
+    :user="user?.user"
+    @close="editingModal = false"
+  />
 
   <UserPasswordChangeModal
-    v-model:visible="passwordChangeModal"
+    v-if="passwordChangeModal"
     :user="user?.user"
-    @close="refetch"
+    @close="onPasswordChangeModalClose"
   />
 
   <header class="bg-white">
@@ -142,7 +171,8 @@ function handleRouteToUC() {
       <template v-for="tab in tabs" :key="tab.id">
         <component
           :is="tab.component"
-          v-if="activeTab === tab.id && !tab.hidden"
+          v-if="activeTab === tab.id"
+          :user="user"
         />
       </template>
     </div>

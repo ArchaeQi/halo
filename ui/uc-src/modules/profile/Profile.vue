@@ -1,38 +1,35 @@
 <script lang="ts" setup>
+import UserAvatar from "@/components/user-avatar/UserAvatar.vue";
+import { usePluginModuleStore } from "@/stores/plugin";
 import { apiClient } from "@/utils/api-client";
+import type { DetailedUser } from "@halo-dev/api-client";
 import {
   VButton,
-  VTabbar,
   VDropdown,
   VDropdownItem,
+  VTabbar,
 } from "@halo-dev/components";
-import { computed, provide, ref, type Ref } from "vue";
-import type { DetailedUser } from "@halo-dev/api-client";
-import ProfileEditingModal from "./components/ProfileEditingModal.vue";
-import PasswordChangeModal from "./components/PasswordChangeModal.vue";
+import type { UserProfileTab } from "@halo-dev/console-shared";
 import { useQuery } from "@tanstack/vue-query";
-import { useI18n } from "vue-i18n";
-import UserAvatar from "@/components/user-avatar/UserAvatar.vue";
-import type { Raw } from "vue";
-import type { Component } from "vue";
-import { markRaw } from "vue";
-import DetailTab from "./tabs/Detail.vue";
-import PersonalAccessTokensTab from "./tabs/PersonalAccessTokens.vue";
 import { useRouteQuery } from "@vueuse/router";
+import {
+  computed,
+  markRaw,
+  onMounted,
+  provide,
+  ref,
+  toRaw,
+  type Ref,
+} from "vue";
+import { useI18n } from "vue-i18n";
+import PasswordChangeModal from "./components/PasswordChangeModal.vue";
+import ProfileEditingModal from "./components/ProfileEditingModal.vue";
+import DetailTab from "./tabs/Detail.vue";
 import NotificationPreferences from "./tabs/NotificationPreferences.vue";
+import PersonalAccessTokensTab from "./tabs/PersonalAccessTokens.vue";
 import TwoFactor from "./tabs/TwoFactor.vue";
 
 const { t } = useI18n();
-
-interface UserTab {
-  id: string;
-  label: string;
-  component: Raw<Component>;
-  props?: Record<string, unknown>;
-  permissions?: string[];
-  priority: number;
-  hidden?: boolean;
-}
 
 const editingModal = ref(false);
 const passwordChangeModal = ref(false);
@@ -51,7 +48,7 @@ const {
 
 provide<Ref<DetailedUser | undefined>>("user", user);
 
-const tabs: UserTab[] = [
+const tabs = ref<UserProfileTab[]>([
   {
     id: "detail",
     label: t("core.uc_profile.tabs.detail"),
@@ -76,23 +73,54 @@ const tabs: UserTab[] = [
     component: markRaw(TwoFactor),
     priority: 40,
   },
-];
+]);
+
+// Collect uc:profile:tabs:create extension points
+const { pluginModules } = usePluginModuleStore();
+
+onMounted(async () => {
+  for (const pluginModule of pluginModules) {
+    try {
+      const callbackFunction =
+        pluginModule?.extensionPoints?.["uc:user:profile:tabs:create"];
+      if (typeof callbackFunction !== "function") {
+        continue;
+      }
+
+      const providers = await callbackFunction();
+
+      tabs.value.push(...providers);
+    } catch (error) {
+      console.error(`Error processing plugin module:`, pluginModule, error);
+    }
+  }
+});
 
 const tabbarItems = computed(() => {
-  return tabs.map((tab) => ({ id: tab.id, label: tab.label }));
+  return toRaw(tabs)
+    .value.sort((a, b) => a.priority - b.priority)
+    .map((tab) => ({
+      id: tab.id,
+      label: tab.label,
+    }));
 });
 
-const activeTab = useRouteQuery<string>("tab", tabs[0].id, {
+const activeTab = useRouteQuery<string>("tab", tabs.value[0].id, {
   mode: "push",
 });
+
+function onPasswordChangeModalClose() {
+  passwordChangeModal.value = false;
+  refetch();
+}
 </script>
 <template>
-  <ProfileEditingModal v-model:visible="editingModal" />
+  <ProfileEditingModal v-if="editingModal" @close="editingModal = false" />
 
   <PasswordChangeModal
-    v-model:visible="passwordChangeModal"
+    v-if="passwordChangeModal"
     :user="user?.user"
-    @close="refetch"
+    @close="onPasswordChangeModalClose"
   />
 
   <header class="bg-white">
@@ -140,7 +168,8 @@ const activeTab = useRouteQuery<string>("tab", tabs[0].id, {
       <template v-for="tab in tabs" :key="tab.id">
         <component
           :is="tab.component"
-          v-if="activeTab === tab.id && !tab.hidden"
+          v-if="activeTab === tab.id"
+          :user="user"
         />
       </template>
     </div>

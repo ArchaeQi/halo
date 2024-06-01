@@ -20,14 +20,14 @@ export function useFetchAttachmentPolicy(): useFetchAttachmentPolicyReturn {
     queryKey: ["attachment-policies"],
     queryFn: async () => {
       const { data } =
-        await apiClient.extension.storage.policy.liststorageHaloRunV1alpha1Policy();
+        await apiClient.extension.storage.policy.listStorageHaloRunV1alpha1Policy();
       return data.items;
     },
     refetchInterval(data) {
-      const deletingPolicies = data?.filter(
+      const hasDeletingPolicy = data?.some(
         (policy) => !!policy.metadata.deletionTimestamp
       );
-      return deletingPolicies?.length ? 1000 : false;
+      return hasDeletingPolicy ? 1000 : false;
     },
   });
 
@@ -43,7 +43,7 @@ export function useFetchAttachmentPolicyTemplate(): useFetchAttachmentPolicyTemp
     queryKey: ["attachment-policy-templates"],
     queryFn: async () => {
       const { data } =
-        await apiClient.extension.storage.policyTemplate.liststorageHaloRunV1alpha1PolicyTemplate();
+        await apiClient.extension.storage.policyTemplate.listStorageHaloRunV1alpha1PolicyTemplate();
       return data.items;
     },
   });

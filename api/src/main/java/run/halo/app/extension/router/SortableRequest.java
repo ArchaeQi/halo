@@ -1,5 +1,7 @@
 package run.halo.app.extension.router;
 
+import static org.springframework.data.domain.Sort.Order.asc;
+import static org.springframework.data.domain.Sort.Order.desc;
 import static run.halo.app.extension.Comparators.compareCreationTimestamp;
 import static run.halo.app.extension.Comparators.compareName;
 import static run.halo.app.extension.Comparators.nullsComparator;
@@ -12,6 +14,7 @@ import java.util.Comparator;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import org.springdoc.core.fn.builders.operation.Builder;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.data.domain.Sort;
@@ -39,7 +42,10 @@ public class SortableRequest extends IListRequest.QueryListRequest {
             implementation = String.class,
             example = "metadata.creationTimestamp,desc"))
     public Sort getSort() {
-        return SortResolver.defaultInstance.resolve(exchange);
+        return SortResolver.defaultInstance.resolve(exchange)
+            .and(Sort.by(desc("metadata.creationTimestamp"),
+                asc("metadata.name"))
+            );
     }
 
     /**
@@ -94,5 +100,10 @@ public class SortableRequest extends IListRequest.QueryListRequest {
         return Stream.concat(comparatorStream, fallbackComparator)
             .reduce(Comparator::thenComparing)
             .orElse(null);
+    }
+
+    public static void buildParameters(Builder builder) {
+        IListRequest.buildParameters(builder);
+        builder.parameter(QueryParamBuildUtil.sortParameter());
     }
 }

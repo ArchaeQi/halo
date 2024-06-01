@@ -2,12 +2,17 @@
 import { CoreEditor } from "@halo-dev/richtext-editor";
 import type { Attachment } from "@halo-dev/api-client";
 import Image from "../extensions/image";
+import ExtensionVideo from "../extensions/video";
+import ExtensionAudio from "../extensions/audio";
 import type { AxiosRequestConfig } from "axios";
+import { usePermission } from "@/utils/permission";
 
 export interface FileProps {
   file: File;
   editor: CoreEditor;
 }
+
+const { currentUserHasPermission } = usePermission();
 
 /**
  * Handles file events, determining if the file is an image and triggering the appropriate upload process.
@@ -20,8 +25,22 @@ export const handleFileEvent = ({ file, editor }: FileProps) => {
     return false;
   }
 
+  if (!currentUserHasPermission(["uc:attachments:manage"])) {
+    return false;
+  }
+
   if (file.type.startsWith("image/")) {
     uploadImage({ file, editor });
+    return true;
+  }
+
+  if (file.type.startsWith("video/")) {
+    uploadVideo({ file, editor });
+    return true;
+  }
+
+  if (file.type.startsWith("audio/")) {
+    uploadAudio({ file, editor });
     return true;
   }
 
@@ -36,6 +55,32 @@ export const handleFileEvent = ({ file, editor }: FileProps) => {
 export const uploadImage = ({ file, editor }: FileProps) => {
   const { view } = editor;
   const node = view.props.state.schema.nodes[Image.name].create({
+    file: file,
+  });
+  editor.view.dispatch(editor.view.state.tr.replaceSelectionWith(node));
+};
+
+/**
+ * Uploads a video file and inserts it into the editor.
+ *
+ * @param {FileProps} { file, editor } - File to be uploaded and the editor instance
+ */
+export const uploadVideo = ({ file, editor }: FileProps) => {
+  const { view } = editor;
+  const node = view.props.state.schema.nodes[ExtensionVideo.name].create({
+    file: file,
+  });
+  editor.view.dispatch(editor.view.state.tr.replaceSelectionWith(node));
+};
+
+/**
+ * Uploads an audio file and inserts it into the editor.
+ *
+ * @param {FileProps} { file, editor } - File to be uploaded and the editor instance
+ */
+export const uploadAudio = ({ file, editor }: FileProps) => {
+  const { view } = editor;
+  const node = view.props.state.schema.nodes[ExtensionAudio.name].create({
     file: file,
   });
   editor.view.dispatch(editor.view.state.tr.replaceSelectionWith(node));

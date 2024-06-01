@@ -1,28 +1,29 @@
 <script lang="ts" setup>
 import {
+  Dialog,
   IconBookRead,
+  IconEye,
+  IconHistoryLine,
   IconSave,
-  IconSettings,
   IconSendPlaneFill,
+  IconSettings,
+  Toast,
   VButton,
   VPageHeader,
   VSpace,
-  Toast,
-  Dialog,
-  IconEye,
 } from "@halo-dev/components";
 import PostSettingModal from "./components/PostSettingModal.vue";
 import type { Post, PostRequest } from "@halo-dev/api-client";
 import {
   computed,
+  type ComputedRef,
   nextTick,
   onMounted,
   provide,
   ref,
   toRef,
-  type ComputedRef,
+  watch,
 } from "vue";
-import { cloneDeep } from "lodash-es";
 import { apiClient } from "@/utils/api-client";
 import { useRouteQuery } from "@vueuse/router";
 import { useRouter } from "vue-router";
@@ -80,7 +81,7 @@ interface PostRequestWithContent extends PostRequest {
 }
 
 // Post form
-const initialFormState: PostRequestWithContent = {
+const formState = ref<PostRequestWithContent>({
   post: {
     spec: {
       title: "",
@@ -114,12 +115,18 @@ const initialFormState: PostRequestWithContent = {
     content: "",
     rawType: "HTML",
   },
-};
-
-const formState = ref<PostRequestWithContent>(cloneDeep(initialFormState));
+});
 const settingModal = ref(false);
 const saving = ref(false);
 const publishing = ref(false);
+
+const isTitleChanged = ref(false);
+watch(
+  () => formState.value.post.spec.title,
+  (newValue, oldValue) => {
+    isTitleChanged.value = newValue !== oldValue;
+  }
+);
 
 const isUpdateMode = computed(() => {
   return !!formState.value.post.metadata.creationTimestamp;
@@ -155,15 +162,25 @@ const handleSave = async (options?: { mute?: boolean }) => {
     }
 
     if (isUpdateMode.value) {
+      // Save post title
+      if (isTitleChanged.value) {
+        formState.value.post = (
+          await postUpdateMutate(formState.value.post)
+        ).data;
+      }
+
       const { data } = await apiClient.post.updatePostContent({
         name: formState.value.post.metadata.name,
         content: formState.value.content,
       });
 
       formState.value.post = data;
+
+      isTitleChanged.value = false;
     } else {
       // Clear new post content cache
       handleClearCache();
+
       const { data } = await apiClient.post.draftPost({
         postRequest: formState.value,
       });
@@ -194,6 +211,12 @@ const handlePublish = async () => {
     if (isUpdateMode.value) {
       const { name: postName } = formState.value.post.metadata;
       const { permalink } = formState.value.post.status || {};
+
+      if (isTitleChanged.value) {
+        formState.value.post = (
+          await postUpdateMutate(formState.value.post)
+        ).data;
+      }
 
       await apiClient.post.updatePostContent({
         name: postName,
@@ -240,6 +263,7 @@ const handlePublishClick = () => {
   if (isUpdateMode.value) {
     handlePublish();
   } else {
+    // Set editor title to post
     settingModal.value = true;
   }
 };
@@ -268,7 +292,8 @@ const handleFetchContent = async () => {
     const provider =
       preferredEditor ||
       editorProviders.value.find(
-        (provider) => provider.rawType === data.rawType
+        (provider) =>
+          provider.rawType.toLowerCase() === data.rawType?.toLowerCase()
       );
 
     if (provider) {
@@ -302,7 +327,7 @@ const handleFetchContent = async () => {
 
 const handleOpenSettingModal = async () => {
   const { data: latestPost } =
-    await apiClient.extension.post.getcontentHaloRunV1alpha1Post({
+    await apiClient.extension.post.getContentHaloRunV1alpha1Post({
       name: formState.value.post.metadata.name,
     });
   formState.value.post = latestPost;
@@ -317,7 +342,6 @@ const onSettingSaved = (post: Post) => {
   }
 
   formState.value.post = post;
-  settingModal.value = false;
 
   if (!isUpdateMode.value) {
     handleSave();
@@ -326,7 +350,6 @@ const onSettingSaved = (post: Post) => {
 
 const onSettingPublished = (post: Post) => {
   formState.value.post = post;
-  settingModal.value = false;
   handlePublish();
 };
 
@@ -336,7 +359,7 @@ onMounted(async () => {
   if (name.value) {
     // fetch post
     const { data: post } =
-      await apiClient.extension.post.getcontentHaloRunV1alpha1Post({
+      await apiClient.extension.post.getContentHaloRunV1alpha1Post({
         name: name.value as string,
       });
     formState.value.post = post;
@@ -429,19 +452,20 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
 
 <template>
   <PostSettingModal
-    v-model:visible="settingModal"
+    v-if="settingModal"
     :post="formState.post"
     :publish-support="!isUpdateMode"
     :only-emit="!isUpdateMode"
+    @close="settingModal = false"
     @saved="onSettingSaved"
     @published="onSettingPublished"
   />
 
   <UrlPreviewModal
-    v-if="isUpdateMode"
-    v-model:visible="previewModal"
+    v-if="previewModal"
     :title="formState.post.spec.title"
     :url="`/preview/posts/${formState.post.metadata.name}`"
+    @close="previewModal = false"
   />
 
   <VPageHeader :title="$t('core.post.title')">
@@ -456,6 +480,19 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
           :allow-forced-select="!isUpdateMode"
           @select="handleChangeEditorProvider"
         />
+        <VButton
+          v-if="isUpdateMode"
+          size="sm"
+          type="default"
+          @click="
+            $router.push({ name: 'PostSnapshots', query: { name: name } })
+          "
+        >
+          <template #icon>
+            <IconHistoryLine class="h-full w-full" />
+          </template>
+          {{ $t("core.post_editor.actions.snapshots") }}
+        </VButton>
         <VButton
           size="sm"
           type="default"
@@ -503,6 +540,7 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
       v-if="currentEditorProvider"
       v-model:raw="formState.content.raw"
       v-model:content="formState.content.content"
+      v-model:title="formState.post.spec.title"
       :upload-image="handleUploadImage"
       class="h-full"
       @update="handleSetContentCache"

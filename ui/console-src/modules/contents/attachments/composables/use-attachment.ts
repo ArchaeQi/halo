@@ -1,6 +1,5 @@
-import type { Attachment, Group, Policy } from "@halo-dev/api-client";
-import { computed, nextTick, type Ref } from "vue";
-import { ref, watch } from "vue";
+import type { Attachment } from "@halo-dev/api-client";
+import { computed, nextTick, type Ref, ref, watch } from "vue";
 import { apiClient } from "@/utils/api-client";
 import { Dialog, Toast } from "@halo-dev/components";
 import { useQuery } from "@tanstack/vue-query";
@@ -27,9 +26,10 @@ interface useAttachmentControlReturn {
 }
 
 export function useAttachmentControl(filterOptions: {
-  policy?: Ref<Policy | undefined>;
-  group?: Ref<Group | undefined>;
+  policyName?: Ref<string | undefined>;
+  groupName?: Ref<string | undefined>;
   user?: Ref<string | undefined>;
+  accepts?: Ref<string[]>;
   keyword?: Ref<string | undefined>;
   sort?: Ref<string | undefined>;
   page: Ref<number>;
@@ -37,7 +37,8 @@ export function useAttachmentControl(filterOptions: {
 }): useAttachmentControlReturn {
   const { t } = useI18n();
 
-  const { user, policy, group, keyword, sort, page, size } = filterOptions;
+  const { user, policyName, groupName, keyword, sort, page, size, accepts } =
+    filterOptions;
 
   const selectedAttachment = ref<Attachment>();
   const selectedAttachments = ref<Set<Attachment>>(new Set<Attachment>());
@@ -48,14 +49,24 @@ export function useAttachmentControl(filterOptions: {
   const hasNext = ref(false);
 
   const { data, isLoading, isFetching, refetch } = useQuery<Attachment[]>({
-    queryKey: ["attachments", policy, keyword, group, user, page, size, sort],
+    queryKey: [
+      "attachments",
+      policyName,
+      keyword,
+      groupName,
+      user,
+      accepts,
+      page,
+      size,
+      sort,
+    ],
     queryFn: async () => {
-      const isUnGrouped = group?.value?.metadata.name === "ungrouped";
+      const isUnGrouped = groupName?.value === "ungrouped";
 
       const fieldSelectorMap: Record<string, string | undefined> = {
-        "spec.policyName": policy?.value?.metadata.name,
+        "spec.policyName": policyName?.value,
         "spec.ownerName": user?.value,
-        "spec.groupName": isUnGrouped ? undefined : group?.value?.metadata.name,
+        "spec.groupName": isUnGrouped ? undefined : groupName?.value,
       };
 
       const fieldSelector = Object.entries(fieldSelectorMap)
@@ -71,6 +82,7 @@ export function useAttachmentControl(filterOptions: {
         page: page.value,
         size: size.value,
         ungrouped: isUnGrouped,
+        accepts: accepts?.value,
         keyword: keyword?.value,
         sort: [sort?.value as string].filter(Boolean),
       });
@@ -82,10 +94,10 @@ export function useAttachmentControl(filterOptions: {
       return data.items;
     },
     refetchInterval(data) {
-      const deletingAttachments = data?.filter(
+      const hasDeletingAttachment = data?.some(
         (attachment) => !!attachment.metadata.deletionTimestamp
       );
-      return deletingAttachments?.length ? 1000 : false;
+      return hasDeletingAttachment ? 1000 : false;
     },
   });
 
@@ -146,7 +158,7 @@ export function useAttachmentControl(filterOptions: {
         try {
           const promises = Array.from(selectedAttachments.value).map(
             (attachment) => {
-              return apiClient.extension.storage.attachment.deletestorageHaloRunV1alpha1Attachment(
+              return apiClient.extension.storage.attachment.deleteStorageHaloRunV1alpha1Attachment(
                 {
                   name: attachment.metadata.name,
                 }

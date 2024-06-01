@@ -1,58 +1,62 @@
 <script lang="ts" setup>
 import {
+  DecorationSet,
+  Editor,
   Extension,
-  RichTextEditor,
   ExtensionBlockquote,
   ExtensionBold,
   ExtensionBulletList,
+  ExtensionClearFormat,
   ExtensionCode,
+  ExtensionCodeBlock,
+  ExtensionColor,
+  ExtensionColumn,
+  ExtensionColumns,
+  ExtensionCommands,
   ExtensionDocument,
+  ExtensionDraggable,
   ExtensionDropcursor,
+  ExtensionFontSize,
+  ExtensionFormatBrush,
   ExtensionGapcursor,
   ExtensionHardBreak,
   ExtensionHeading,
+  ExtensionHighlight,
   ExtensionHistory,
   ExtensionHorizontalRule,
+  ExtensionIframe,
+  ExtensionIndent,
   ExtensionItalic,
-  ExtensionOrderedList,
-  ExtensionStrike,
-  ExtensionText,
-  ExtensionImage,
-  ExtensionTaskList,
   ExtensionLink,
-  ExtensionTextAlign,
-  ExtensionUnderline,
-  ExtensionTable,
+  ExtensionListKeymap,
+  ExtensionNodeSelected,
+  ExtensionOrderedList,
+  ExtensionPlaceholder,
+  ExtensionSearchAndReplace,
+  ExtensionStrike,
   ExtensionSubscript,
   ExtensionSuperscript,
-  ExtensionPlaceholder,
-  ExtensionHighlight,
-  ExtensionCommands,
-  ExtensionIframe,
-  ExtensionVideo,
-  ExtensionAudio,
-  ExtensionCodeBlock,
-  ExtensionFontSize,
-  ExtensionColor,
-  ExtensionIndent,
-  lowlight,
-  type AnyExtension,
-  Editor,
-  ToolboxItem,
-  ExtensionDraggable,
-  ExtensionColumns,
-  ExtensionColumn,
-  ExtensionNodeSelected,
+  ExtensionTable,
+  ExtensionTaskList,
+  ExtensionText,
+  ExtensionTextAlign,
   ExtensionTrailingNode,
-  ToolbarItem,
+  ExtensionUnderline,
   Plugin,
   PluginKey,
-  DecorationSet,
-  ExtensionListKeymap,
-  ExtensionSearchAndReplace,
+  RichTextEditor,
+  ToolbarItem,
+  ToolboxItem,
+  lowlight,
+  type AnyExtension,
 } from "@halo-dev/richtext-editor";
 // ui custom extension
-import { UiExtensionImage, UiExtensionUpload } from "./extensions";
+import { i18n } from "@/locales";
+import { usePluginModuleStore } from "@/stores/plugin";
+import { formatDatetime } from "@/utils/date";
+import { usePermission } from "@/utils/permission";
+import AttachmentSelectorModal from "@console/modules/contents/attachments/components/AttachmentSelectorModal.vue";
+import type { Attachment } from "@halo-dev/api-client";
 import {
   IconCalendar,
   IconCharacterRecognition,
@@ -62,8 +66,23 @@ import {
   VTabItem,
   VTabs,
 } from "@halo-dev/components";
-import AttachmentSelectorModal from "@console/modules/contents/attachments/components/AttachmentSelectorModal.vue";
+import type { AttachmentLike } from "@halo-dev/console-shared";
 import ExtensionCharacterCount from "@tiptap/extension-character-count";
+import { useDebounceFn, useLocalStorage } from "@vueuse/core";
+import type { AxiosRequestConfig } from "axios";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-vue";
+import {
+  inject,
+  markRaw,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+  type ComputedRef,
+} from "vue";
+import { useI18n } from "vue-i18n";
 import MdiFormatHeader1 from "~icons/mdi/format-header-1";
 import MdiFormatHeader2 from "~icons/mdi/format-header-2";
 import MdiFormatHeader3 from "~icons/mdi/format-header-3";
@@ -71,27 +90,13 @@ import MdiFormatHeader4 from "~icons/mdi/format-header-4";
 import MdiFormatHeader5 from "~icons/mdi/format-header-5";
 import MdiFormatHeader6 from "~icons/mdi/format-header-6";
 import RiLayoutRightLine from "~icons/ri/layout-right-line";
-import {
-  inject,
-  markRaw,
-  ref,
-  watch,
-  onMounted,
-  shallowRef,
-  type ComputedRef,
-} from "vue";
-import { formatDatetime } from "@/utils/date";
 import { useAttachmentSelect } from "./composables/use-attachment";
-import type { Attachment } from "@halo-dev/api-client";
-import { useI18n } from "vue-i18n";
-import { i18n } from "@/locales";
-import { OverlayScrollbarsComponent } from "overlayscrollbars-vue";
-import { usePluginModuleStore } from "@/stores/plugin";
-import type { AttachmentLike, PluginModule } from "@halo-dev/console-shared";
-import { useDebounceFn, useLocalStorage } from "@vueuse/core";
-import { onBeforeUnmount } from "vue";
-import { usePermission } from "@/utils/permission";
-import type { AxiosRequestConfig } from "axios";
+import {
+  UiExtensionAudio,
+  UiExtensionImage,
+  UiExtensionUpload,
+  UiExtensionVideo,
+} from "./extensions";
 import { getContents } from "./utils/attachment";
 
 const { t } = useI18n();
@@ -99,6 +104,7 @@ const { currentUserHasPermission } = usePermission();
 
 const props = withDefaults(
   defineProps<{
+    title?: string;
     raw?: string;
     content: string;
     uploadImage?: (
@@ -107,6 +113,7 @@ const props = withDefaults(
     ) => Promise<Attachment>;
   }>(),
   {
+    title: "",
     raw: "",
     content: "",
     uploadImage: undefined,
@@ -114,6 +121,7 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
+  (event: "update:title", value: string): void;
   (event: "update:raw", value: string): void;
   (event: "update:content", value: string): void;
   (event: "update", value: string): void;
@@ -181,20 +189,21 @@ const handleCloseAttachmentSelectorModal = () => {
   attachmentOptions.value = initAttachmentOptions;
 };
 
-onMounted(() => {
+onMounted(async () => {
   const extensionsFromPlugins: AnyExtension[] = [];
-  pluginModules.forEach((pluginModule: PluginModule) => {
-    const { extensionPoints } = pluginModule;
-    if (!extensionPoints?.["default:editor:extension:create"]) {
-      return;
+
+  for (const pluginModule of pluginModules) {
+    const callbackFunction =
+      pluginModule?.extensionPoints?.["default:editor:extension:create"];
+
+    if (typeof callbackFunction !== "function") {
+      continue;
     }
 
-    const extensions = extensionPoints[
-      "default:editor:extension:create"
-    ]() as [];
+    const extensions = await callbackFunction();
 
     extensionsFromPlugins.push(...extensions);
-  });
+  }
 
   // debounce OnUpdate
   const debounceOnUpdate = useDebounceFn(() => {
@@ -203,10 +212,6 @@ onMounted(() => {
     emit("update:content", html);
     emit("update", html);
   }, 250);
-
-  const image = currentUserHasPermission(["uc:attachments:manage"])
-    ? UiExtensionImage
-    : ExtensionImage;
 
   editor.value = new Editor({
     content: props.raw,
@@ -230,7 +235,7 @@ onMounted(() => {
       ExtensionOrderedList,
       ExtensionStrike,
       ExtensionText,
-      image.configure({
+      UiExtensionImage.configure({
         inline: true,
         allowBase64: false,
         HTMLAttributes: {
@@ -240,7 +245,7 @@ onMounted(() => {
       }),
       ExtensionTaskList,
       ExtensionLink.configure({
-        autolink: true,
+        autolink: false,
         openOnClick: false,
       }),
       ExtensionTextAlign.configure({
@@ -263,8 +268,12 @@ onMounted(() => {
         lowlight,
       }),
       ExtensionIframe,
-      ExtensionVideo,
-      ExtensionAudio,
+      UiExtensionVideo.configure({
+        uploadVideo: props.uploadImage,
+      }),
+      UiExtensionAudio.configure({
+        uploadAudio: props.uploadImage,
+      }),
       ExtensionCharacterCount,
       ExtensionFontSize,
       ExtensionColor,
@@ -390,8 +399,9 @@ onMounted(() => {
       ExtensionListKeymap,
       UiExtensionUpload,
       ExtensionSearchAndReplace,
+      ExtensionClearFormat,
+      ExtensionFormatBrush,
     ],
-    autofocus: "start",
     parseOptions: {
       preserveWhitespace: true,
     },
@@ -428,6 +438,26 @@ const currentLocale = i18n.global.locale.value as
   | "en"
   | "zh"
   | "en-US";
+
+function onTitleInput(event: Event) {
+  emit("update:title", (event.target as HTMLInputElement).value);
+}
+
+// Set focus
+const editorTitleRef = ref();
+onMounted(() => {
+  // if name is empty, it means the editor is in the creation mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const name = urlParams.get("name");
+
+  if (!name) {
+    nextTick(() => {
+      editorTitleRef.value.focus();
+    });
+  } else {
+    editor.value?.commands.focus();
+  }
+});
 </script>
 
 <template>
@@ -439,6 +469,17 @@ const currentLocale = i18n.global.locale.value as
       @close="handleCloseAttachmentSelectorModal"
     />
     <RichTextEditor v-if="editor" :editor="editor" :locale="currentLocale">
+      <template #content>
+        <input
+          ref="editorTitleRef"
+          :value="title"
+          type="text"
+          :placeholder="$t('core.components.default_editor.title_placeholder')"
+          class="w-full border-x-0 !border-b border-t-0 !border-solid !border-gray-100 p-0 !py-2 text-4xl font-semibold placeholder:text-gray-300"
+          @input="onTitleInput"
+          @keydown.enter="() => editor?.commands.focus('start')"
+        />
+      </template>
       <template v-if="showSidebar" #extra>
         <OverlayScrollbarsComponent
           element="div"

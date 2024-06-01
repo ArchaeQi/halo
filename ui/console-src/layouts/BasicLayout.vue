@@ -47,11 +47,15 @@ const handleLogout = () => {
     cancelText: t("core.common.buttons.cancel"),
     onConfirm: async () => {
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/logout`, undefined, {
+        await axios.post(`/logout`, undefined, {
           withCredentials: true,
         });
 
         await userStore.fetchCurrentUser();
+
+        // Clear csrf token
+        document.cookie =
+          "XSRF-TOKEN=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 
         router.replace({ name: "Login" });
       } catch (error) {
@@ -112,7 +116,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div class="flex min-h-screen">
     <aside
       class="navbar fixed hidden h-full overflow-y-auto md:flex md:flex-col"
     >
@@ -209,7 +213,7 @@ onMounted(() => {
         class="mt-auto p-4 text-center text-sm"
       >
         <span class="text-gray-600">Powered by </span>
-        <RouterLink to="/actuator" class="hover:text-gray-600">
+        <RouterLink to="/overview" class="hover:text-gray-600">
           Halo
         </RouterLink>
       </footer>
@@ -295,7 +299,10 @@ onMounted(() => {
       </Teleport>
     </div>
   </div>
-  <GlobalSearchModal v-model:visible="globalSearchVisible" />
+  <GlobalSearchModal
+    v-if="globalSearchVisible"
+    @close="globalSearchVisible = false"
+  />
   <LoginModal />
 </template>
 

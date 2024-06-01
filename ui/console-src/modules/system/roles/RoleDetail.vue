@@ -1,14 +1,14 @@
 <script lang="ts" setup>
 import {
   IconShieldUser,
+  VAlert,
   VButton,
   VCard,
+  VDescription,
+  VDescriptionItem,
   VPageHeader,
   VTabbar,
   VTag,
-  VAlert,
-  VDescription,
-  VDescriptionItem,
 } from "@halo-dev/components";
 import { useRoute } from "vue-router";
 import { computed, ref, watch } from "vue";
@@ -31,7 +31,7 @@ const tabActiveId = ref("detail");
 const { data: roleTemplates } = useQuery({
   queryKey: ["role-templates"],
   queryFn: async () => {
-    const { data } = await apiClient.extension.role.listv1alpha1Role({
+    const { data } = await apiClient.extension.role.listV1alpha1Role({
       page: 0,
       size: 0,
       labelSelector: [`${roleLabels.TEMPLATE}=true`, "!halo.run/hidden"],
@@ -43,7 +43,7 @@ const { data: roleTemplates } = useQuery({
 const { roleTemplateGroups, handleRoleTemplateSelect, selectedRoleTemplates } =
   useRoleTemplateSelection(roleTemplates);
 
-const { formState, saving, handleCreateOrUpdate } = useRoleForm();
+const { formState, isSubmitting, handleCreateOrUpdate } = useRoleForm();
 
 const isSystemReserved = computed(() => {
   return (
@@ -84,7 +84,7 @@ watch(
 const { refetch } = useQuery<Role>({
   queryKey: ["role", route.params.name],
   queryFn: async () => {
-    const { data } = await apiClient.extension.role.getv1alpha1Role({
+    const { data } = await apiClient.extension.role.getV1alpha1Role({
       name: route.params.name as string,
     });
     return data;
@@ -178,6 +178,7 @@ const handleUpdateRole = async () => {
               )
             "
             class="w-full sm:w-1/4"
+            :closable="false"
           />
         </div>
 
@@ -284,7 +285,7 @@ const handleUpdateRole = async () => {
           </dl>
           <div v-permission="['system:roles:manage']" class="p-4">
             <VButton
-              :loading="saving"
+              :loading="isSubmitting"
               type="secondary"
               :disabled="isSystemReserved"
               @click="handleUpdateRole"

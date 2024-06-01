@@ -1,23 +1,24 @@
 <script lang="ts" setup>
 import {
+  Dialog,
   IconAddCircle,
   IconArrowLeft,
   IconArrowRight,
   IconBookRead,
   IconRefreshLine,
-  Dialog,
+  Toast,
   VButton,
   VCard,
   VEmpty,
+  VLoading,
   VPageHeader,
   VPagination,
   VSpace,
-  VLoading,
-  Toast,
 } from "@halo-dev/components";
 import PostSettingModal from "./components/PostSettingModal.vue";
-import { computed, ref, watch } from "vue";
-import type { Post, ListedPost } from "@halo-dev/api-client";
+import type { Ref } from "vue";
+import { computed, provide, ref, watch } from "vue";
+import type { ListedPost, Post } from "@halo-dev/api-client";
 import { apiClient } from "@/utils/api-client";
 import { postLabels } from "@/constants/labels";
 import { useQuery } from "@tanstack/vue-query";
@@ -27,8 +28,6 @@ import UserFilterDropdown from "@/components/filter/UserFilterDropdown.vue";
 import CategoryFilterDropdown from "@/components/filter/CategoryFilterDropdown.vue";
 import TagFilterDropdown from "@/components/filter/TagFilterDropdown.vue";
 import PostListItem from "./components/PostListItem.vue";
-import { provide } from "vue";
-import type { Ref } from "vue";
 
 const { t } = useI18n();
 
@@ -133,9 +132,7 @@ const {
     }
 
     if (selectedPublishStatus.value !== undefined) {
-      labelSelector.push(
-        `${postLabels.PUBLISHED}=${selectedPublishStatus.value}`
-      );
+      labelSelector.push(selectedPublishStatus.value);
     }
 
     const { data } = await apiClient.post.listPosts({
@@ -154,21 +151,39 @@ const {
     return data.items;
   },
   refetchInterval: (data) => {
-    const abnormalPosts = data?.some((post) => {
-      const { spec, metadata, status } = post.post;
+    const hasDeletingPost = data?.some((post) => post.post.spec.deleted);
+
+    if (hasDeletingPost) {
+      return 1000;
+    }
+
+    const hasPublishingPost = data?.some((post) => {
+      const { spec, metadata } = post.post;
       return (
-        spec.deleted ||
-        (spec.publish && metadata.labels?.[postLabels.PUBLISHED] !== "true") ||
-        (spec.releaseSnapshot === spec.headSnapshot && status?.inProgress)
+        metadata.labels?.[postLabels.PUBLISHED] !== spec.publish + "" &&
+        metadata.labels?.[postLabels.SCHEDULING_PUBLISH] !== "true"
       );
     });
 
-    return abnormalPosts ? 1000 : false;
+    if (hasPublishingPost) {
+      return 1000;
+    }
+
+    const hasCancelingPublishPost = data?.some((post) => {
+      const { spec, metadata } = post.post;
+      return (
+        !spec.publish &&
+        (metadata.labels?.[postLabels.PUBLISHED] === "true" ||
+          metadata.labels?.[postLabels.SCHEDULING_PUBLISH] === "true")
+      );
+    });
+
+    return hasCancelingPublishPost ? 1000 : false;
   },
 });
 
 const handleOpenSettingModal = async (post: Post) => {
-  const { data } = await apiClient.extension.post.getcontentHaloRunV1alpha1Post(
+  const { data } = await apiClient.extension.post.getContentHaloRunV1alpha1Post(
     {
       name: post.metadata.name,
     }
@@ -179,6 +194,7 @@ const handleOpenSettingModal = async (post: Post) => {
 
 const onSettingModalClose = () => {
   selectedPost.value = undefined;
+  settingModal.value = false;
   refetch();
 };
 
@@ -191,13 +207,13 @@ const handleSelectPrevious = async () => {
 
   if (index > 0) {
     const { data: previousPost } =
-      await apiClient.extension.post.getcontentHaloRunV1alpha1Post({
+      await apiClient.extension.post.getContentHaloRunV1alpha1Post({
         name: posts.value[index - 1].post.metadata.name,
       });
     selectedPost.value = previousPost;
     return;
   }
-  if (index === 0 && hasPrevious) {
+  if (index === 0 && hasPrevious.value) {
     page.value--;
     await refetch();
     selectedPost.value = posts.value[posts.value.length - 1].post;
@@ -212,7 +228,7 @@ const handleSelectNext = async () => {
   );
   if (index < posts.value.length - 1) {
     const { data: nextPost } =
-      await apiClient.extension.post.getcontentHaloRunV1alpha1Post({
+      await apiClient.extension.post.getContentHaloRunV1alpha1Post({
         name: posts.value[index + 1].post.metadata.name,
       });
     selectedPost.value = nextPost;
@@ -274,7 +290,7 @@ watch(selectedPostNames, (newValue) => {
 </script>
 <template>
   <PostSettingModal
-    v-model:visible="settingModal"
+    v-if="settingModal"
     :post="selectedPost"
     @close="onSettingModalClose"
   >
@@ -357,11 +373,15 @@ watch(selectedPostNames, (newValue) => {
                   },
                   {
                     label: t('core.post.filters.status.items.published'),
-                    value: 'true',
+                    value: `${postLabels.PUBLISHED}=true`,
                   },
                   {
                     label: t('core.post.filters.status.items.draft'),
-                    value: 'false',
+                    value: `${postLabels.PUBLISHED}=false`,
+                  },
+                  {
+                    label: t('core.post.filters.status.items.scheduling'),
+                    value: `${postLabels.SCHEDULING_PUBLISH}=true`,
                   },
                 ]"
               />
@@ -419,6 +439,26 @@ watch(selectedPostNames, (newValue) => {
                   {
                     label: t('core.post.filters.sort.items.create_time_asc'),
                     value: 'metadata.creationTimestamp,asc',
+                  },
+                  {
+                    label: t(
+                      'core.post.filters.sort.items.last_modify_time_desc'
+                    ),
+                    value: 'status.lastModifyTime,desc',
+                  },
+                  {
+                    label: t(
+                      'core.post.filters.sort.items.last_modify_time_asc'
+                    ),
+                    value: 'status.lastModifyTime,asc',
+                  },
+                  {
+                    label: t('core.post.filters.sort.items.visit_desc'),
+                    value: 'stats.visit,desc',
+                  },
+                  {
+                    label: t('core.post.filters.sort.items.comment_desc'),
+                    value: 'stats.totalComment,desc',
                   },
                 ]"
               />

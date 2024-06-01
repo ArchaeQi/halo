@@ -6,6 +6,7 @@ import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
 import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static org.springdoc.core.fn.builders.requestbody.Builder.requestBodyBuilder;
 import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
+import static org.springframework.http.HttpStatus.NO_CONTENT;
 import static org.springframework.web.reactive.function.server.RequestPredicates.contentType;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -18,6 +19,7 @@ import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springdoc.core.fn.builders.operation.Builder;
 import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
@@ -40,7 +42,6 @@ import run.halo.app.extension.ConfigMap;
 import run.halo.app.extension.ListResult;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.router.IListRequest;
-import run.halo.app.extension.router.QueryParamBuildUtil;
 import run.halo.app.infra.ReactiveUrlDataBufferFetcher;
 import run.halo.app.infra.SystemConfigurableEnvironmentFetcher;
 import run.halo.app.infra.SystemSetting;
@@ -188,6 +189,20 @@ public class ThemeEndpoint implements CustomEndpoint {
                     .response(responseBuilder()
                         .implementation(Theme.class))
             )
+            .PUT("/themes/{name}/invalidate-cache", this::invalidateCache,
+                builder -> builder.operationId("InvalidateCache")
+                    .description("Invalidate theme template cache.")
+                    .tag(tag)
+                    .parameter(parameterBuilder()
+                        .name("name")
+                        .in(ParameterIn.PATH)
+                        .required(true)
+                        .implementation(String.class)
+                    )
+                    .response(responseBuilder()
+                        .responseCode(String.valueOf(NO_CONTENT.value()))
+                    )
+            )
             .GET("themes", this::listThemes,
                 builder -> {
                     builder.operationId("ListThemes")
@@ -195,7 +210,7 @@ public class ThemeEndpoint implements CustomEndpoint {
                         .tag(tag)
                         .response(responseBuilder()
                             .implementation(ListResult.generateGenericClass(Theme.class)));
-                    QueryParamBuildUtil.buildParametersFromType(builder, ThemeQuery.class);
+                    ThemeQuery.buildParameters(builder);
                 }
             )
             .GET("themes/-/activation", this::fetchActivatedTheme,
@@ -232,6 +247,13 @@ public class ThemeEndpoint implements CustomEndpoint {
                         .implementation(ConfigMap.class))
             )
             .build();
+    }
+
+    private Mono<ServerResponse> invalidateCache(ServerRequest request) {
+        final var name = request.pathVariable("name");
+        return client.get(Theme.class, name)
+            .flatMap(theme -> templateEngineManager.clearCache(name))
+            .then(ServerResponse.noContent().build());
     }
 
     private Mono<ServerResponse> upgradeFromUri(ServerRequest request) {
@@ -302,7 +324,7 @@ public class ThemeEndpoint implements CustomEndpoint {
                         if (!configMapName.equals(configMapNameToUpdate)) {
                             throw new ServerWebInputException(
                                 "The name from the request body does not match the theme "
-                                + "configMapName name.");
+                                    + "configMapName name.");
                         }
                     })
                     .flatMap(configMapToUpdate -> client.fetch(ConfigMap.class, configMapName)
@@ -367,6 +389,16 @@ public class ThemeEndpoint implements CustomEndpoint {
         @NonNull
         public Boolean getUninstalled() {
             return Boolean.parseBoolean(queryParams.getFirst("uninstalled"));
+        }
+
+        public static void buildParameters(Builder builder) {
+            IListRequest.buildParameters(builder);
+            builder.parameter(parameterBuilder()
+                .name("uninstalled")
+                .description("Whether to list uninstalled themes.")
+                .in(ParameterIn.QUERY)
+                .implementation(Boolean.class)
+                .required(false));
         }
     }
 

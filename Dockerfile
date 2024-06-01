@@ -8,7 +8,7 @@ RUN java -Djarmode=layertools -jar application.jar extract
 ################################
 
 FROM ibm-semeru-runtimes:open-21-jre
-MAINTAINER johnniang <johnniang@fastmail.com>
+LABEL maintainer="johnniang <johnniang@foxmail.com>"
 WORKDIR application
 COPY --from=builder application/dependencies/ ./
 COPY --from=builder application/spring-boot-loader/ ./
@@ -22,5 +22,7 @@ ENV JVM_OPTS="-Xmx256m -Xms256m" \
 
 RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
     && echo $TZ > /etc/timezone
+
+Expose 8090
 
 ENTRYPOINT ["sh", "-c", "java ${JVM_OPTS} org.springframework.boot.loader.launch.JarLauncher ${0} ${@}"]

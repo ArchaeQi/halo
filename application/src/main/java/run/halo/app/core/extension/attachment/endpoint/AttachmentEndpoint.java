@@ -2,7 +2,10 @@ package run.halo.app.core.extension.attachment.endpoint;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
+import static org.springdoc.core.fn.builders.arrayschema.Builder.arraySchemaBuilder;
 import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
+import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
+import static org.springdoc.core.fn.builders.requestbody.Builder.requestBodyBuilder;
 import static org.springdoc.core.fn.builders.schema.Builder.schemaBuilder;
 import static org.springframework.boot.convert.ApplicationConversionService.getSharedInstance;
 import static org.springframework.web.reactive.function.server.RequestPredicates.contentType;
@@ -13,16 +16,18 @@ import static run.halo.app.extension.index.query.QueryFactory.contains;
 import static run.halo.app.extension.index.query.QueryFactory.in;
 import static run.halo.app.extension.index.query.QueryFactory.isNull;
 import static run.halo.app.extension.index.query.QueryFactory.not;
-import static run.halo.app.extension.router.QueryParamBuildUtil.buildParametersFromType;
+import static run.halo.app.extension.index.query.QueryFactory.startsWith;
 import static run.halo.app.extension.router.selector.SelectorUtil.labelAndFieldSelectorToListOptions;
 
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.BooleanUtils;
-import org.springdoc.core.fn.builders.requestbody.Builder;
+import org.springdoc.core.fn.builders.operation.Builder;
 import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
@@ -30,6 +35,7 @@ import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.http.codec.multipart.FormFieldPart;
 import org.springframework.http.codec.multipart.Part;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.BodyExtractors;
@@ -47,8 +53,10 @@ import run.halo.app.core.extension.service.AttachmentService;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.PageRequestImpl;
 import run.halo.app.extension.ReactiveExtensionClient;
+import run.halo.app.extension.index.query.QueryFactory;
 import run.halo.app.extension.router.IListRequest;
 import run.halo.app.extension.router.IListRequest.QueryListRequest;
+import run.halo.app.extension.router.QueryParamBuildUtil;
 import run.halo.app.extension.router.selector.LabelSelector;
 
 @Slf4j
@@ -86,7 +94,7 @@ public class AttachmentEndpoint implements CustomEndpoint {
                 builder -> builder
                     .operationId("UploadAttachment")
                     .tag(tag)
-                    .requestBody(Builder.requestBodyBuilder()
+                    .requestBody(requestBodyBuilder()
                         .required(true)
                         .content(contentBuilder()
                             .mediaType(MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -102,7 +110,7 @@ public class AttachmentEndpoint implements CustomEndpoint {
                         .response(
                             responseBuilder().implementation(generateGenericClass(Attachment.class))
                         );
-                    buildParametersFromType(builder, ISearchRequest.class);
+                    ISearchRequest.buildParameters(builder);
                 }
             )
             .build();
@@ -140,6 +148,14 @@ public class AttachmentEndpoint implements CustomEndpoint {
         Optional<Boolean> getUngrouped();
 
         @ArraySchema(uniqueItems = true,
+            arraySchema = @Schema(name = "accepts",
+                description = "Acceptable media types."),
+            schema = @Schema(description = "like image/*, video/mp4, text/*",
+                implementation = String.class,
+                example = "image/*"))
+        List<String> getAccepts();
+
+        @ArraySchema(uniqueItems = true,
             arraySchema = @Schema(name = "sort",
                 description = "Sort property and direction of the list result. Supported fields: "
                     + "creationTimestamp, size"),
@@ -147,6 +163,40 @@ public class AttachmentEndpoint implements CustomEndpoint {
                 implementation = String.class,
                 example = "creationTimestamp,desc"))
         Sort getSort();
+
+        public static void buildParameters(Builder builder) {
+            IListRequest.buildParameters(builder);
+            builder.parameter(QueryParamBuildUtil.sortParameter())
+                .parameter(parameterBuilder()
+                    .in(ParameterIn.QUERY)
+                    .name("ungrouped")
+                    .required(false)
+                    .description("""
+                        Filter attachments without group. This parameter will ignore group \
+                        parameter.\
+                        """)
+                    .implementation(Boolean.class))
+                .parameter(parameterBuilder()
+                    .in(ParameterIn.QUERY)
+                    .name("keyword")
+                    .required(false)
+                    .description("Keyword for searching.")
+                    .implementation(String.class))
+                .parameter(parameterBuilder()
+                    .in(ParameterIn.QUERY)
+                    .name("accepts")
+                    .required(false)
+                    .description("Acceptable media types.")
+                    .array(
+                        arraySchemaBuilder()
+                            .uniqueItems(true)
+                            .schema(schemaBuilder()
+                                .implementation(String.class)
+                                .example("image/*"))
+                    )
+                    .implementationArray(String.class)
+                );
+        }
     }
 
     public static class SearchRequest extends QueryListRequest implements ISearchRequest {
@@ -168,6 +218,11 @@ public class AttachmentEndpoint implements CustomEndpoint {
         public Optional<Boolean> getUngrouped() {
             return Optional.ofNullable(queryParams.getFirst("ungrouped"))
                 .map(ungroupedStr -> getSharedInstance().convert(ungroupedStr, Boolean.class));
+        }
+
+        @Override
+        public List<String> getAccepts() {
+            return queryParams.getOrDefault("accepts", Collections.emptyList());
         }
 
         @Override
@@ -197,8 +252,26 @@ public class AttachmentEndpoint implements CustomEndpoint {
                 fieldQuery = and(fieldQuery, not(in("spec.groupName", hiddenGroups)));
             }
 
+            if (hasAccepts()) {
+                var acceptFieldQueryOptional = getAccepts().stream()
+                    .filter(StringUtils::hasText)
+                    .map((accept -> accept.replace("/*", "/").toLowerCase()))
+                    .distinct()
+                    .map(accept -> startsWith("spec.mediaType", accept))
+                    .reduce(QueryFactory::or);
+                if (acceptFieldQueryOptional.isPresent()) {
+                    fieldQuery = and(fieldQuery, acceptFieldQueryOptional.get());
+                }
+            }
+
             listOptions.setFieldSelector(listOptions.getFieldSelector().andQuery(fieldQuery));
             return listOptions;
+        }
+
+        private boolean hasAccepts() {
+            return !CollectionUtils.isEmpty(getAccepts())
+                && !getAccepts().contains("*")
+                && !getAccepts().contains("*/*");
         }
     }
 

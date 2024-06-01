@@ -1,4 +1,14 @@
 <script lang="ts" setup>
+import AnnotationsForm from "@/components/form/AnnotationsForm.vue";
+import { singlePageLabels } from "@/constants/labels";
+import { FormType } from "@/types/slug";
+import { apiClient } from "@/utils/api-client";
+import { toDatetimeLocal, toISOString } from "@/utils/date";
+import { randomUUID } from "@/utils/id";
+import useSlugify from "@console/composables/use-slugify";
+import { useThemeCustomTemplates } from "@console/modules/interface/themes/composables/use-theme";
+import { submitForm } from "@formkit/core";
+import type { SinglePage } from "@halo-dev/api-client";
 import {
   IconRefreshLine,
   Toast,
@@ -6,22 +16,33 @@ import {
   VModal,
   VSpace,
 } from "@halo-dev/components";
-import { computed, nextTick, ref, watchEffect } from "vue";
-import type { SinglePage } from "@halo-dev/api-client";
 import { cloneDeep } from "lodash-es";
-import { apiClient } from "@/utils/api-client";
-import { useThemeCustomTemplates } from "@console/modules/interface/themes/composables/use-theme";
-import { singlePageLabels } from "@/constants/labels";
-import { randomUUID } from "@/utils/id";
-import { toDatetimeLocal, toISOString } from "@/utils/date";
-import { submitForm } from "@formkit/core";
-import AnnotationsForm from "@/components/form/AnnotationsForm.vue";
-import useSlugify from "@console/composables/use-slugify";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { usePageUpdateMutate } from "../composables/use-page-update-mutate";
-import { FormType } from "@/types/slug";
 
-const initialFormState: SinglePage = {
+const props = withDefaults(
+  defineProps<{
+    singlePage?: SinglePage;
+    publishSupport?: boolean;
+    onlyEmit?: boolean;
+  }>(),
+  {
+    singlePage: undefined,
+    publishSupport: true,
+    onlyEmit: false,
+  }
+);
+
+const emit = defineEmits<{
+  (event: "close"): void;
+  (event: "saved", singlePage: SinglePage): void;
+  (event: "published", singlePage: SinglePage): void;
+}>();
+
+const { t } = useI18n();
+
+const formState = ref<SinglePage>({
   spec: {
     title: "",
     slug: "",
@@ -45,48 +66,15 @@ const initialFormState: SinglePage = {
   metadata: {
     name: randomUUID(),
   },
-};
-
-const props = withDefaults(
-  defineProps<{
-    visible: boolean;
-    singlePage?: SinglePage;
-    publishSupport?: boolean;
-    onlyEmit?: boolean;
-  }>(),
-  {
-    visible: false,
-    singlePage: undefined,
-    publishSupport: true,
-    onlyEmit: false,
-  }
-);
-
-const emit = defineEmits<{
-  (event: "update:visible", visible: boolean): void;
-  (event: "close"): void;
-  (event: "saved", singlePage: SinglePage): void;
-  (event: "published", singlePage: SinglePage): void;
-}>();
-
-const { t } = useI18n();
-
-const formState = ref<SinglePage>(cloneDeep(initialFormState));
-const saving = ref(false);
+});
+const modal = ref<InstanceType<typeof VModal> | null>(null);
+const isSubmitting = ref(false);
 const publishing = ref(false);
 const publishCanceling = ref(false);
 const submitType = ref<"publish" | "save">();
+const publishTime = ref<string | undefined>(undefined);
 
-const isUpdateMode = computed(() => {
-  return !!formState.value.metadata.creationTimestamp;
-});
-
-const onVisibleChange = (visible: boolean) => {
-  emit("update:visible", visible);
-  if (!visible) {
-    emit("close");
-  }
-};
+const isUpdateMode = !!props.singlePage;
 
 const annotationsFormRef = ref<InstanceType<typeof AnnotationsForm>>();
 
@@ -116,7 +104,7 @@ const handlePublishClick = () => {
 };
 
 // Fix me:
-// Force update post settings,
+// Force update singlePage settings,
 // because currently there may be errors caused by changes in version due to asynchronous processing.
 const { mutateAsync: singlePageUpdateMutate } = usePageUpdateMutate();
 
@@ -137,15 +125,16 @@ const handleSave = async () => {
 
   if (props.onlyEmit) {
     emit("saved", formState.value);
+    modal.value?.close();
     return;
   }
 
   try {
-    saving.value = true;
+    isSubmitting.value = true;
 
-    const { data } = isUpdateMode.value
+    const { data } = isUpdateMode
       ? await singlePageUpdateMutate(formState.value)
-      : await apiClient.extension.singlePage.createcontentHaloRunV1alpha1SinglePage(
+      : await apiClient.extension.singlePage.createContentHaloRunV1alpha1SinglePage(
           {
             singlePage: formState.value,
           }
@@ -154,13 +143,13 @@ const handleSave = async () => {
     formState.value = data;
     emit("saved", data);
 
-    onVisibleChange(false);
+    modal.value?.close();
 
     Toast.success(t("core.common.toast.save_success"));
   } catch (error) {
     console.error("Failed to save single page", error);
   } finally {
-    saving.value = false;
+    isSubmitting.value = false;
   }
 };
 
@@ -181,6 +170,7 @@ const handlePublish = async () => {
 
   if (props.onlyEmit) {
     emit("published", formState.value);
+    modal.value?.close();
     return;
   }
 
@@ -194,7 +184,7 @@ const handlePublish = async () => {
     singlePageToUpdate.spec.publish = true;
 
     const { data } =
-      await apiClient.extension.singlePage.updatecontentHaloRunV1alpha1SinglePage(
+      await apiClient.extension.singlePage.updateContentHaloRunV1alpha1SinglePage(
         {
           name: formState.value.metadata.name,
           singlePage: singlePageToUpdate,
@@ -205,7 +195,7 @@ const handlePublish = async () => {
 
     emit("published", data);
 
-    onVisibleChange(false);
+    modal.value?.close();
 
     Toast.success(t("core.common.toast.publish_success"));
   } catch (error) {
@@ -220,7 +210,7 @@ const handleUnpublish = async () => {
     publishCanceling.value = true;
 
     const { data: singlePage } =
-      await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+      await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
         name: formState.value.metadata.name,
       });
 
@@ -228,7 +218,7 @@ const handleUnpublish = async () => {
     singlePageToUpdate.spec.publish = false;
 
     const { data } =
-      await apiClient.extension.singlePage.updatecontentHaloRunV1alpha1SinglePage(
+      await apiClient.extension.singlePage.updateContentHaloRunV1alpha1SinglePage(
         {
           name: formState.value.metadata.name,
           singlePage: singlePageToUpdate,
@@ -237,7 +227,7 @@ const handleUnpublish = async () => {
 
     formState.value = data;
 
-    onVisibleChange(false);
+    modal.value?.close();
 
     Toast.success(t("core.common.toast.cancel_publish_success"));
   } catch (error) {
@@ -247,25 +237,28 @@ const handleUnpublish = async () => {
   }
 };
 
-watchEffect(() => {
-  if (props.singlePage) {
-    formState.value = cloneDeep(props.singlePage);
+watch(
+  () => props.singlePage,
+  (value) => {
+    if (value) {
+      formState.value = cloneDeep(value);
+      publishTime.value = toDatetimeLocal(formState.value.spec.publishTime);
+    }
+  },
+  {
+    immediate: true,
   }
-});
+);
+
+watch(
+  () => publishTime.value,
+  (value) => {
+    formState.value.spec.publishTime = value ? toISOString(value) : undefined;
+  }
+);
 
 // custom templates
 const { templates } = useThemeCustomTemplates("page");
-
-// publishTime
-const publishTime = computed({
-  get() {
-    const { publishTime } = formState.value.spec;
-    return publishTime ? toDatetimeLocal(publishTime) : undefined;
-  },
-  set(value) {
-    formState.value.spec.publishTime = value ? toISOString(value) : undefined;
-  },
-});
 
 // slug
 const { handleGenerateSlug } = useSlugify(
@@ -278,18 +271,18 @@ const { handleGenerateSlug } = useSlugify(
       formState.value.spec.slug = value;
     },
   }),
-  computed(() => !isUpdateMode.value),
+  computed(() => !isUpdateMode),
   FormType.SINGLE_PAGE
 );
 </script>
 
 <template>
   <VModal
-    :visible="visible"
+    ref="modal"
     :width="700"
     :title="$t('core.page.settings.title')"
     :centered="false"
-    @update:visible="onVisibleChange"
+    @close="emit('close')"
   >
     <template #actions>
       <slot name="actions"></slot>
@@ -417,6 +410,8 @@ const { handleGenerateSlug } = useSlugify(
               :label="$t('core.page.settings.fields.publish_time.label')"
               type="datetime-local"
               name="publishTime"
+              min="0000-01-01T00:00"
+              max="9999-12-31T23:59"
             ></FormKit>
             <FormKit
               v-model="formState.spec.template"
@@ -462,10 +457,11 @@ const { handleGenerateSlug } = useSlugify(
     </div>
 
     <template #footer>
-      <VSpace>
-        <template v-if="publishSupport">
+      <div class="flex items-center justify-between">
+        <VSpace>
           <VButton
             v-if="
+              publishSupport &&
               formState.metadata.labels?.[singlePageLabels.PUBLISHED] !== 'true'
             "
             :loading="publishing"
@@ -475,21 +471,28 @@ const { handleGenerateSlug } = useSlugify(
             {{ $t("core.common.buttons.publish") }}
           </VButton>
           <VButton
-            v-else
-            :loading="publishCanceling"
-            type="danger"
-            @click="handleUnpublish()"
+            :loading="isSubmitting"
+            type="secondary"
+            @click="handleSaveClick"
           >
-            {{ $t("core.common.buttons.cancel_publish") }}
+            {{ $t("core.common.buttons.save") }}
           </VButton>
-        </template>
-        <VButton :loading="saving" type="secondary" @click="handleSaveClick">
-          {{ $t("core.common.buttons.save") }}
+          <VButton type="default" @click="modal?.close()">
+            {{ $t("core.common.buttons.close") }}
+          </VButton>
+        </VSpace>
+
+        <VButton
+          v-if="
+            formState.metadata.labels?.[singlePageLabels.PUBLISHED] === 'true'
+          "
+          :loading="publishCanceling"
+          type="danger"
+          @click="handleUnpublish()"
+        >
+          {{ $t("core.common.buttons.cancel_publish") }}
         </VButton>
-        <VButton type="default" @click="onVisibleChange(false)">
-          {{ $t("core.common.buttons.close") }}
-        </VButton>
-      </VSpace>
+      </div>
     </template>
   </VModal>
 </template>

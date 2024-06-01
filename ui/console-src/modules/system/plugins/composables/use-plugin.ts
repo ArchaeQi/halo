@@ -1,6 +1,6 @@
 import type { ComputedRef, Ref } from "vue";
 import { computed } from "vue";
-import { type Plugin } from "@halo-dev/api-client";
+import { type Plugin, PluginStatusPhaseEnum } from "@halo-dev/api-client";
 import { cloneDeep } from "lodash-es";
 import { apiClient } from "@/utils/api-client";
 import { Dialog, Toast } from "@halo-dev/components";
@@ -9,7 +9,8 @@ import { useMutation } from "@tanstack/vue-query";
 
 interface usePluginLifeCycleReturn {
   isStarted: ComputedRef<boolean | undefined>;
-  getFailedMessage: () => string | undefined;
+  getStatusDotState: () => string;
+  getStatusMessage: () => string | undefined;
   changeStatus: () => void;
   changingStatus: Ref<boolean>;
   uninstall: (deleteExtensions?: boolean) => void;
@@ -22,19 +23,49 @@ export function usePluginLifeCycle(
 
   const isStarted = computed(() => {
     return (
-      plugin?.value?.status?.phase === "STARTED" && plugin.value?.spec.enabled
+      plugin?.value?.status?.phase === PluginStatusPhaseEnum.Started &&
+      plugin.value?.spec.enabled
     );
   });
 
-  const getFailedMessage = () => {
+  const getStatusDotState = () => {
+    const { phase } = plugin?.value?.status || {};
+    const { enabled } = plugin?.value?.spec || {};
+
+    if (enabled && phase === PluginStatusPhaseEnum.Failed) {
+      return "error";
+    }
+
+    if (phase === PluginStatusPhaseEnum.Disabling) {
+      return "warning";
+    }
+
+    return "default";
+  };
+
+  const getStatusMessage = () => {
     if (!plugin?.value) return;
 
-    if (!isStarted.value) {
+    const { phase } = plugin.value.status || {};
+
+    if (
+      phase === PluginStatusPhaseEnum.Failed ||
+      phase === PluginStatusPhaseEnum.Disabling
+    ) {
       const lastCondition = plugin.value.status?.conditions?.[0];
 
       return (
-        [lastCondition?.reason, lastCondition?.message].join(":") || "Unknown"
+        [lastCondition?.reason, lastCondition?.message]
+          .filter(Boolean)
+          .join(": ") || "Unknown"
       );
+    }
+
+    // Starting up
+    if (
+      phase !== (PluginStatusPhaseEnum.Started || PluginStatusPhaseEnum.Failed)
+    ) {
+      return t("core.common.status.starting_up");
     }
   };
 
@@ -89,13 +120,13 @@ export function usePluginLifeCycle(
           if (enabled) {
             const pluginToUpdate = cloneDeep(plugin.value);
             pluginToUpdate.spec.enabled = false;
-            await apiClient.extension.plugin.updatepluginHaloRunV1alpha1Plugin({
+            await apiClient.extension.plugin.updatePluginHaloRunV1alpha1Plugin({
               name: pluginToUpdate.metadata.name,
               plugin: pluginToUpdate,
             });
           }
 
-          await apiClient.extension.plugin.deletepluginHaloRunV1alpha1Plugin({
+          await apiClient.extension.plugin.deletePluginHaloRunV1alpha1Plugin({
             name: plugin.value.metadata.name,
           });
 
@@ -104,7 +135,7 @@ export function usePluginLifeCycle(
             const { settingName, configMapName } = plugin.value.spec;
 
             if (settingName) {
-              await apiClient.extension.setting.deletev1alpha1Setting(
+              await apiClient.extension.setting.deleteV1alpha1Setting(
                 {
                   name: settingName,
                 },
@@ -115,7 +146,7 @@ export function usePluginLifeCycle(
             }
 
             if (configMapName) {
-              await apiClient.extension.configMap.deletev1alpha1ConfigMap(
+              await apiClient.extension.configMap.deleteV1alpha1ConfigMap(
                 {
                   name: configMapName,
                 },
@@ -138,7 +169,8 @@ export function usePluginLifeCycle(
 
   return {
     isStarted,
-    getFailedMessage,
+    getStatusDotState,
+    getStatusMessage,
     changeStatus,
     changingStatus,
     uninstall,
@@ -164,13 +196,13 @@ export function usePluginBatchOperations(names: Ref<string[]>) {
       onConfirm: async () => {
         try {
           for (let i = 0; i < names.value.length; i++) {
-            await apiClient.extension.plugin.deletepluginHaloRunV1alpha1Plugin({
+            await apiClient.extension.plugin.deletePluginHaloRunV1alpha1Plugin({
               name: names.value[i],
             });
 
             if (deleteExtensions) {
               const { data: plugin } =
-                await apiClient.extension.plugin.getpluginHaloRunV1alpha1Plugin(
+                await apiClient.extension.plugin.getPluginHaloRunV1alpha1Plugin(
                   {
                     name: names.value[i],
                   }
@@ -179,7 +211,7 @@ export function usePluginBatchOperations(names: Ref<string[]>) {
               const { settingName, configMapName } = plugin.spec;
 
               if (settingName) {
-                await apiClient.extension.setting.deletev1alpha1Setting(
+                await apiClient.extension.setting.deleteV1alpha1Setting(
                   {
                     name: settingName,
                   },
@@ -190,7 +222,7 @@ export function usePluginBatchOperations(names: Ref<string[]>) {
               }
 
               if (configMapName) {
-                await apiClient.extension.configMap.deletev1alpha1ConfigMap(
+                await apiClient.extension.configMap.deleteV1alpha1ConfigMap(
                   {
                     name: configMapName,
                   },

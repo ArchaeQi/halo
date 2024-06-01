@@ -43,11 +43,15 @@ const handleLogout = () => {
     cancelText: t("core.common.buttons.cancel"),
     onConfirm: async () => {
       try {
-        await axios.post(`${import.meta.env.VITE_API_URL}/logout`, undefined, {
+        await axios.post(`/logout`, undefined, {
           withCredentials: true,
         });
 
         await userStore.fetchCurrentUser();
+
+        // Clear csrf token
+        document.cookie =
+          "XSRF-TOKEN=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
 
         window.location.href = "/console/login";
       } catch (error) {
@@ -108,7 +112,7 @@ const disallowAccessConsole = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div class="flex min-h-screen">
     <aside
       class="navbar fixed hidden h-full overflow-y-auto md:flex md:flex-col"
     >

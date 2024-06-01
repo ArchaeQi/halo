@@ -1,6 +1,7 @@
 import {
   ApiConsoleHaloRunV1alpha1PluginApi,
   ApiConsoleHaloRunV1alpha1PostApi,
+  ApiConsoleHaloRunV1alpha1TagApi,
   ApiConsoleHaloRunV1alpha1SinglePageApi,
   ApiConsoleHaloRunV1alpha1ThemeApi,
   ApiConsoleHaloRunV1alpha1UserApi,
@@ -56,7 +57,7 @@ import { useUserStore } from "@/stores/user";
 import { Toast } from "@halo-dev/components";
 import { i18n } from "@/locales";
 
-const baseURL = import.meta.env.VITE_API_URL;
+const baseURL = "/";
 
 const axiosInstance = axios.create({
   baseURL,
@@ -112,6 +113,13 @@ axiosInstance.interceptors.response.use(
 
     if (title || detail) {
       Toast.error(detail || title);
+      return Promise.reject(error);
+    }
+
+    // Final fallback
+    if (errorResponse.status) {
+      const { status, statusText } = errorResponse;
+      Toast.error([status, statusText].filter(Boolean).join(": "));
       return Promise.reject(error);
     }
 
@@ -207,6 +215,7 @@ function setupApiClient(axios: AxiosInstance) {
     plugin: new ApiConsoleHaloRunV1alpha1PluginApi(undefined, baseURL, axios),
     theme: new ApiConsoleHaloRunV1alpha1ThemeApi(undefined, baseURL, axios),
     post: new ApiConsoleHaloRunV1alpha1PostApi(undefined, baseURL, axios),
+    tag: new ApiConsoleHaloRunV1alpha1TagApi(undefined, baseURL, axios),
     singlePage: new ApiConsoleHaloRunV1alpha1SinglePageApi(
       undefined,
       baseURL,
@@ -273,4 +282,4 @@ function setupApiClient(axios: AxiosInstance) {
   };
 }
 
-export { apiClient };
+export { apiClient, axiosInstance };

@@ -1,45 +1,44 @@
 <script lang="ts" setup>
+import UserFilterDropdown from "@/components/filter/UserFilterDropdown.vue";
+import LazyImage from "@/components/image/LazyImage.vue";
+import { apiClient } from "@/utils/api-client";
+import { isImage } from "@/utils/image";
+import type { Attachment, Group } from "@halo-dev/api-client";
 import {
   IconArrowLeft,
   IconArrowRight,
   IconCheckboxFill,
   IconDatabase2Line,
+  IconFolder,
   IconGrid,
   IconList,
-  IconUpload,
   IconRefreshLine,
+  IconUpload,
+  Toast,
   VButton,
   VCard,
+  VDropdown,
+  VDropdownItem,
+  VEmpty,
+  VLoading,
   VPageHeader,
   VPagination,
   VSpace,
-  VEmpty,
-  IconFolder,
-  VLoading,
-  Toast,
-  VDropdown,
-  VDropdownItem,
 } from "@halo-dev/components";
-import LazyImage from "@/components/image/LazyImage.vue";
-import AttachmentDetailModal from "./components/AttachmentDetailModal.vue";
-import AttachmentUploadModal from "./components/AttachmentUploadModal.vue";
-import AttachmentPoliciesModal from "./components/AttachmentPoliciesModal.vue";
-import AttachmentGroupList from "./components/AttachmentGroupList.vue";
-import { computed, onMounted, ref, watch } from "vue";
-import type { Attachment, Group } from "@halo-dev/api-client";
-import { useFetchAttachmentPolicy } from "./composables/use-attachment-policy";
-import { useAttachmentControl } from "./composables/use-attachment";
-import { apiClient } from "@/utils/api-client";
-import { cloneDeep } from "lodash-es";
-import { isImage } from "@/utils/image";
-import { useRouteQuery } from "@vueuse/router";
-import { useFetchAttachmentGroup } from "./composables/use-attachment-group";
-import { useI18n } from "vue-i18n";
 import { useLocalStorage } from "@vueuse/core";
-import UserFilterDropdown from "@/components/filter/UserFilterDropdown.vue";
-import { provide } from "vue";
+import { useRouteQuery } from "@vueuse/router";
+import { cloneDeep } from "lodash-es";
 import type { Ref } from "vue";
+import { computed, onMounted, provide, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import AttachmentDetailModal from "./components/AttachmentDetailModal.vue";
+import AttachmentGroupList from "./components/AttachmentGroupList.vue";
 import AttachmentListItem from "./components/AttachmentListItem.vue";
+import AttachmentPoliciesModal from "./components/AttachmentPoliciesModal.vue";
+import AttachmentUploadModal from "./components/AttachmentUploadModal.vue";
+import { useAttachmentControl } from "./composables/use-attachment";
+import { useFetchAttachmentGroup } from "./composables/use-attachment-group";
+import { useFetchAttachmentPolicy } from "./composables/use-attachment-policy";
 
 const { t } = useI18n();
 
@@ -48,9 +47,9 @@ const uploadVisible = ref(false);
 const detailVisible = ref(false);
 
 const { policies } = useFetchAttachmentPolicy();
-const { groups, handleFetchGroups } = useFetchAttachmentGroup();
+const { groups } = useFetchAttachmentGroup();
 
-const selectedGroup = ref<Group>();
+const selectedGroup = useRouteQuery<string | undefined>("group");
 
 // Filter
 const keyword = useRouteQuery<string>("keyword", "");
@@ -63,12 +62,14 @@ const size = useRouteQuery<number>("size", 60, {
 const selectedPolicy = useRouteQuery<string | undefined>("policy");
 const selectedUser = useRouteQuery<string | undefined>("user");
 const selectedSort = useRouteQuery<string | undefined>("sort");
+const selectedAccepts = useRouteQuery<string | undefined>("accepts");
 
 watch(
   () => [
     selectedPolicy.value,
     selectedUser.value,
     selectedSort.value,
+    selectedAccepts.value,
     keyword.value,
   ],
   () => {
@@ -77,13 +78,19 @@ watch(
 );
 
 const hasFilters = computed(() => {
-  return selectedPolicy.value || selectedUser.value || selectedSort.value;
+  return (
+    selectedPolicy.value ||
+    selectedUser.value ||
+    selectedSort.value ||
+    selectedAccepts.value
+  );
 });
 
 function handleClearFilters() {
   selectedPolicy.value = undefined;
   selectedUser.value = undefined;
   selectedSort.value = undefined;
+  selectedAccepts.value = undefined;
 }
 
 const {
@@ -103,13 +110,15 @@ const {
   isChecked,
   handleReset,
 } = useAttachmentControl({
-  group: selectedGroup,
-  policy: computed(() => {
-    return policies.value?.find(
-      (policy) => policy.metadata.name === selectedPolicy.value
-    );
-  }),
+  groupName: selectedGroup,
+  policyName: selectedPolicy,
   user: selectedUser,
+  accepts: computed(() => {
+    if (!selectedAccepts.value) {
+      return [];
+    }
+    return selectedAccepts.value.split(",");
+  }),
   keyword: keyword,
   sort: selectedSort,
   page: page,
@@ -123,7 +132,7 @@ const handleMove = async (group: Group) => {
     const promises = Array.from(selectedAttachments.value).map((attachment) => {
       const attachmentToUpdate = cloneDeep(attachment);
       attachmentToUpdate.spec.groupName = group.metadata.name;
-      return apiClient.extension.storage.attachment.updatestorageHaloRunV1alpha1Attachment(
+      return apiClient.extension.storage.attachment.updateStorageHaloRunV1alpha1Attachment(
         {
           name: attachment.metadata.name,
           attachment: attachmentToUpdate,
@@ -166,12 +175,14 @@ const onDetailModalClose = () => {
   selectedAttachment.value = undefined;
   nameQuery.value = undefined;
   nameQueryAttachment.value = undefined;
+  detailVisible.value = false;
   handleFetchAttachments();
 };
 
 const onUploadModalClose = () => {
   routeQueryAction.value = undefined;
   handleFetchAttachments();
+  uploadVisible.value = false;
 };
 
 // View type
@@ -219,7 +230,7 @@ onMounted(() => {
     return;
   }
   apiClient.extension.storage.attachment
-    .getstorageHaloRunV1alpha1Attachment({
+    .getStorageHaloRunV1alpha1Attachment({
       name: nameQuery.value,
     })
     .then((response) => {
@@ -230,7 +241,7 @@ onMounted(() => {
 </script>
 <template>
   <AttachmentDetailModal
-    v-model:visible="detailVisible"
+    v-if="detailVisible"
     :attachment="selectedAttachment || nameQueryAttachment"
     @close="onDetailModalClose"
   >
@@ -243,11 +254,11 @@ onMounted(() => {
       </span>
     </template>
   </AttachmentDetailModal>
-  <AttachmentUploadModal
-    v-model:visible="uploadVisible"
-    @close="onUploadModalClose"
+  <AttachmentUploadModal v-if="uploadVisible" @close="onUploadModalClose" />
+  <AttachmentPoliciesModal
+    v-if="policyVisible"
+    @close="policyVisible = false"
   />
-  <AttachmentPoliciesModal v-model:visible="policyVisible" />
   <VPageHeader :title="$t('core.attachment.title')">
     <template #icon>
       <IconFolder class="mr-2 self-center" />
@@ -347,6 +358,31 @@ onMounted(() => {
                       }) || []),
                     ]"
                   />
+                  <FilterDropdown
+                    v-model="selectedAccepts"
+                    :label="$t('core.attachment.filters.accept.label')"
+                    :items="[
+                      {
+                        label: t('core.common.filters.item_labels.all'),
+                      },
+                      {
+                        label: t('core.attachment.filters.accept.items.image'),
+                        value: 'image/*',
+                      },
+                      {
+                        label: t('core.attachment.filters.accept.items.audio'),
+                        value: 'audio/*',
+                      },
+                      {
+                        label: t('core.attachment.filters.accept.items.video'),
+                        value: 'video/*',
+                      },
+                      {
+                        label: t('core.attachment.filters.accept.items.file'),
+                        value: 'text/*,application/*',
+                      },
+                    ]"
+                  />
                   <HasPermission :permissions="['system:users:view']">
                     <UserFilterDropdown
                       v-model="selectedUser"
@@ -371,6 +407,18 @@ onMounted(() => {
                           'core.attachment.filters.sort.items.create_time_asc'
                         ),
                         value: 'metadata.creationTimestamp,asc',
+                      },
+                      {
+                        label: t(
+                          'core.attachment.filters.sort.items.display_name_desc'
+                        ),
+                        value: 'spec.displayName,desc',
+                      },
+                      {
+                        label: t(
+                          'core.attachment.filters.sort.items.display_name_asc'
+                        ),
+                        value: 'spec.displayName,asc',
                       },
                       {
                         label: t(
@@ -417,12 +465,7 @@ onMounted(() => {
           </template>
 
           <div :style="`${viewType === 'list' ? 'padding:12px 16px 0' : ''}`">
-            <AttachmentGroupList
-              v-model:selected-group="selectedGroup"
-              @select="handleReset"
-              @update="handleFetchGroups"
-              @reload-attachments="handleFetchAttachments"
-            />
+            <AttachmentGroupList @select="handleReset" />
           </div>
 
           <VLoading v-if="isLoading" />

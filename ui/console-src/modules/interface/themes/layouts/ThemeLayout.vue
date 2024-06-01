@@ -1,7 +1,14 @@
 <script lang="ts" setup>
 // core libs
-import { nextTick, onMounted, type Ref, computed, watch } from "vue";
-import { provide, ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  provide,
+  type Ref,
+  ref,
+  watch,
+} from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 // libs
@@ -14,18 +21,18 @@ import BasicLayout from "@console/layouts/BasicLayout.vue";
 
 // components
 import {
+  Dialog,
   IconExchange,
   IconEye,
+  IconListSettings,
   IconPalette,
   VButton,
   VCard,
   VEmpty,
+  VLoading,
   VPageHeader,
   VSpace,
   VTabbar,
-  VLoading,
-  Dialog,
-  IconListSettings,
 } from "@halo-dev/components";
 import ThemeListModal from "../components/ThemeListModal.vue";
 import ThemePreviewModal from "../components/preview/ThemePreviewModal.vue";
@@ -118,7 +125,7 @@ const { data: setting } = useQuery<Setting>({
 
 provide<Ref<Setting | undefined>>("setting", setting);
 
-const handleTabChange = (id: string) => {
+const handleTabChange = (id: string | number) => {
   const tab = tabs.value.find((item) => item.id === id);
   if (tab) {
     activeTab.value = tab.id;
@@ -268,7 +275,15 @@ onMounted(() => {
       </div>
     </div>
 
-    <ThemeListModal v-model:visible="themesModal" @select="onSelectTheme" />
-    <ThemePreviewModal v-model:visible="previewModal" :theme="selectedTheme" />
+    <ThemeListModal
+      v-if="themesModal"
+      @close="themesModal = false"
+      @select="onSelectTheme"
+    />
+    <ThemePreviewModal
+      v-if="previewModal"
+      :theme="selectedTheme"
+      @close="previewModal = false"
+    />
   </BasicLayout>
 </template>

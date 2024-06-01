@@ -1,13 +1,11 @@
 <script lang="ts" setup>
-import { Toast, VButton, VSpace } from "@halo-dev/components";
-
-import { VModal } from "@halo-dev/components";
-import { ref } from "vue";
-import { useMutation, useQueryClient } from "@tanstack/vue-query";
-import { apiClient } from "@/utils/api-client";
 import { useUserStore } from "@/stores/user";
+import { apiClient } from "@/utils/api-client";
+import type { VerifyCodeRequest } from "@halo-dev/api-client";
+import { Toast, VButton, VModal, VSpace } from "@halo-dev/components";
+import { useMutation, useQueryClient } from "@tanstack/vue-query";
 import { useIntervalFn } from "@vueuse/shared";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 const queryClient = useQueryClient();
@@ -19,7 +17,7 @@ const emit = defineEmits<{
   (event: "close"): void;
 }>();
 
-const modal = ref();
+const modal = ref<InstanceType<typeof VModal> | null>(null);
 
 // count down
 const timer = ref(0);
@@ -81,10 +79,11 @@ const sendVerifyCodeButtonText = computed(() => {
 
 const { mutate: verifyEmail, isLoading: isVerifying } = useMutation({
   mutationKey: ["verify-email"],
-  mutationFn: async ({ code }: { code: string }) => {
+  mutationFn: async ({ password, code }: VerifyCodeRequest) => {
     return await apiClient.user.verifyEmail({
       verifyCodeRequest: {
-        code: code,
+        password,
+        code,
       },
     });
   },
@@ -94,12 +93,12 @@ const { mutate: verifyEmail, isLoading: isVerifying } = useMutation({
     );
     queryClient.invalidateQueries({ queryKey: ["user-detail"] });
     fetchCurrentUser();
-    modal.value.close();
+    modal.value?.close();
   },
 });
 
-function handleVerify(data: { code: string }) {
-  verifyEmail({ code: data.code });
+function handleVerify({ password, code }: VerifyCodeRequest) {
+  verifyEmail({ password, code });
 }
 </script>
 
@@ -147,6 +146,13 @@ function handleVerify(data: { code: string }) {
           </VButton>
         </template>
       </FormKit>
+      <FormKit
+        :label="$t('core.uc_profile.email_verify_modal.fields.password.label')"
+        :help="$t('core.uc_profile.email_verify_modal.fields.password.help')"
+        name="password"
+        type="password"
+        validation="required:trim"
+      ></FormKit>
     </FormKit>
     <template #footer>
       <VSpace>
@@ -157,7 +163,7 @@ function handleVerify(data: { code: string }) {
         >
           {{ $t("core.common.buttons.verify") }}
         </VButton>
-        <VButton @click="modal.close()">
+        <VButton @click="modal?.close()">
           {{ $t("core.common.buttons.close_and_shortcut") }}
         </VButton>
       </VSpace>

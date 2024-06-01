@@ -6,6 +6,8 @@ core:
         placeholder: 用户名
       password:
         placeholder: 密码
+      remember_me:
+        label: 保持登录会话
     operations:
       submit:
         toast_success: 登录成功
@@ -84,13 +86,13 @@ core:
         plugins: 插件
         users: 用户
         settings: 设置
-        actuator: 概览
+        overview: 概览
         backup: 备份
         tools: 工具
     operations:
       logout:
         tooltip: 退出登录
-        title: 确定要退出登录吗？
+        title: 退出登录
       profile:
         tooltip: 个人中心
       visit_homepage:
@@ -153,12 +155,12 @@ core:
               title: 新建用户
             refresh_search_engine:
               title: 刷新搜索引擎
-              dialog_title: 确定要刷新搜索引擎索引吗？
+              dialog_title: 刷新搜索引擎索引
               dialog_content: 此操作会对所有已发布的文章重新创建本地搜索引擎的索引。
               success_message: 刷新成功
             evict_page_cache:
               title: 刷新页面缓存
-              dialog_title: 确定要刷新页面缓存吗？
+              dialog_title: 刷新页面缓存
               dialog_content: 此操作会清空所有页面的缓存。
               success_message: 刷新成功
         user_stats:
@@ -178,16 +180,17 @@ core:
       message: 你可以尝试刷新或者新建文章
     operations:
       delete:
-        title: 确定要删除该文章吗？
+        title: 删除文章
         description: 该操作会将文章放入回收站，后续可以从回收站恢复。
       delete_in_batch:
-        title: 确定要删除选中的文章吗？
+        title: 删除所选文章
         description: 该操作会将文章放入回收站，后续可以从回收站恢复。
     filters:
       status:
         items:
           published: 已发布
           draft: 未发布
+          scheduling: 定时发布
       visible:
         label: 可见性
         result: 可见性：{visible}
@@ -209,12 +212,18 @@ core:
           publish_time_asc: 较早发布
           create_time_desc: 较近创建
           create_time_asc: 较早创建
+          visit_desc: 最多访问量
+          comment_desc: 最多评论量
+          last_modify_time_desc: 最近更新
+          last_modify_time_asc: 较早更新
     list:
       fields:
         categories: 分类：
         visits: 访问量 {visits}
         comments: 评论 {comments}
         pinned: 已置顶
+        schedule_publish:
+          tooltip: 定时发布
     settings:
       title: 文章设置
       groups:
@@ -244,10 +253,20 @@ core:
           label: 可见性
         publish_time:
           label: 发表时间
+          help:
+            schedule_publish: 将设置定时任务，并于 {datetime} 发布
         template:
           label: 自定义模板
         cover:
           label: 封面图
+    tag:
+      filters:
+        sort:
+          items:
+            create_time_desc: 较近创建
+            create_time_asc: 较早创建
+            display_name_desc: 标签名降序
+            display_name_asc: 标签名升序
   deleted_post:
     title: 文章回收站
     empty:
@@ -255,16 +274,16 @@ core:
       message: 你可以尝试刷新或者返回文章管理
     operations:
       delete:
-        title: 确定要永久删除该文章吗？
+        title: 删除文章
         description: 删除之后将无法恢复。
       delete_in_batch:
-        title: 确定要永久删除选中的文章吗？
+        title: 删除所选文章
         description: 删除之后将无法恢复。
       recovery:
-        title: 确定要恢复该文章吗？
+        title: 恢复文章
         description: 该操作会将文章恢复到被删除之前的状态。
       recovery_in_batch:
-        title: 确定要恢复选中的文章吗？
+        title: 恢复所选文章
         description: 该操作会将文章恢复到被删除之前的状态。
   uc_post:
     title: 我的文章
@@ -281,6 +300,8 @@ core:
   post_editor:
     title: 文章编辑
     untitled: 未命名文章
+    actions:
+      snapshots: 版本历史
   post_tag:
     title: 文章标签
     header:
@@ -290,8 +311,10 @@ core:
       message: 你可以尝试刷新或者新建标签
     operations:
       delete:
-        title: 确定要删除该标签吗？
+        title: 删除标签
         description: 删除此标签之后，对应文章的关联将被解除。该操作不可恢复。
+      delete_in_batch:
+        title: 删除所选标签
     editing_modal:
       titles:
         update: 编辑文章标签
@@ -321,7 +344,7 @@ core:
       message: 你可以尝试刷新或者新建分类
     operations:
       delete:
-        title: 确定要删除该分类吗？
+        title: 删除分类
         description: 删除此分类之后，对应文章的关联将被解除。该操作不可恢复。
       add_sub_category:
         button: 新增子分类
@@ -358,10 +381,10 @@ core:
       message: 你可以尝试刷新或者新建页面
     operations:
       delete:
-        title: 确定要删除该自定义页面吗？
+        title: 删除页面
         description: 该操作会将自定义页面放入回收站，后续可以从回收站恢复。
       delete_in_batch:
-        title: 确定要删除选中的自定义页面吗？
+        title: 删除所选页面
         description: 该操作会将自定义页面放入回收站，后续可以从回收站恢复。
     filters:
       status:
@@ -423,20 +446,22 @@ core:
       message: 你可以尝试刷新或者返回自定义页面管理
     operations:
       delete:
-        title: 确认要永久删除该自定义页面吗？
+        title: 删除页面
         description: 删除之后将无法恢复。
       delete_in_batch:
-        title: 确定要确认永久删除选中的自定义页面吗？
+        title: 删除所选页面
         description: 删除之后将无法恢复。
       recovery:
-        title: 确认要恢复该自定义页面吗？
+        title: 恢复页面
         description: 该操作会将自定义页面恢复到被删除之前的状态。
       recovery_in_batch:
-        title: 确认要恢复选中的自定义页面吗？
+        title: 恢复所选页面
         description: 该操作会将自定义页面恢复到被删除之前的状态。
   page_editor:
     title: 页面编辑
-    untitled: Untitled page
+    untitled: 未命名页面
+    actions:
+      snapshots: 版本历史
   comment:
     title: 评论
     empty:
@@ -448,10 +473,10 @@ core:
       new: 创建新回复
     operations:
       delete_comment:
-        title: 确认要删除该评论吗？
+        title: 删除评论
         description: 将同时删除所有评论下的回复，该操作不可恢复。
       delete_comment_in_batch:
-        title: 确定要删除所选的评论吗？
+        title: 删除所选评论
         description: 将同时删除所有评论下的回复，该操作不可恢复。
       approve_comment_in_batch:
         button: 审核通过
@@ -460,7 +485,7 @@ core:
         button: 审核通过所有回复
         title: 确定要审核通过该评论的所有回复吗？
       delete_reply:
-        title: 确认要删除该回复吗？
+        title: 删除回复
       approve_reply:
         button: 审核通过
       reply:
@@ -512,9 +537,9 @@ core:
         upload: 上传附件
     operations:
       delete:
-        title: 确定要删除该附件吗？
+        title: 删除附件
       delete_in_batch:
-        title: 确定要删除所选的附件吗？
+        title: 删除所选附件
       deselect_items:
         button: 取消选择
       move:
@@ -533,10 +558,19 @@ core:
           create_time_asc: 较晚上传
           size_desc: 文件大小降序
           size_asc: 文件大小升序
+          display_name_asc: 文件名升序
+          display_name_desc: 文件名降序
       view_type:
         items:
           grid: 网格模式
           list: 列表模式
+      accept:
+        label: 类型
+        items:
+          image: 图片
+          audio: 音频
+          video: 视频
+          file: 文件
     detail_modal:
       title: 附件：{display_name}
       fields:
@@ -569,12 +603,12 @@ core:
           button: 重命名
         delete:
           button: 删除并将附件移动至未分组
-          title: 确定要删除该分组吗？
+          title: 删除附件分组
           description: 将删除分组，并将分组下的附件移动至未分组，该操作不可恢复。
           toast_success: 删除成功，{total} 个附件已移动至未分组
         delete_with_attachments:
           button: 删除并同时删除附件
-          title: 确定要删除该分组吗？
+          title: 删除附件分组
           description: 将删除分组以及分组下的所有附件，该操作不可恢复。
           toast_success: 删除成功，{total} 个附件已被同时删除
     policies_modal:
@@ -584,7 +618,7 @@ core:
         message: 当前没有可用的存储策略，你可以尝试刷新或者新建策略
       operations:
         delete:
-          title: 确定要删除该策略吗？
+          title: 删除附件策略
           description: 当前策略下没有已上传的附件。
         can_not_delete:
           title: 删除失败
@@ -631,28 +665,32 @@ core:
         switch: 切换主题
     operations:
       active:
-        title: 是否确认启用当前主题
+        title: 启用主题
         toast_success: 启用成功
       reset:
-        title: 确定要重置主题的所有配置吗？
+        title: 重置主题配置
         description: 该操作会删除已保存的配置，重置为默认配置。
         toast_success: 重置配置成功
       reload:
         button: 重载主题配置
-        title: 确定要重载主题的所有配置吗？
+        title: 重载主题配置
         description: 该操作仅会重载主题配置和设置表单定义，不会删除已保存的配置。
         toast_success: 重载配置成功
       uninstall:
-        title: 确定要卸载该主题吗？
+        title: 卸载主题
       uninstall_and_delete_config:
         button: 卸载并删除配置
-        title: 确定要卸载该主题以及对应的配置吗？
+        title: 卸载主题以及对应的配置
       remote_download:
         title: 检测到了远程下载地址，是否需要下载？
         description: 请仔细鉴别此地址是否可信：{url}
       existed_during_installation:
         title: 主题已存在
         description: 当前安装的主题已存在，是否升级？
+      clear_templates_cache:
+        button: 清理模板缓存
+        title: 清除模板缓存
+        description: 此功能适用于在运行时修改模板文件后，刷新缓存以查看最新网页结果。
     list_modal:
       tabs:
         installed: 已安装
@@ -676,12 +714,15 @@ core:
     detail:
       fields:
         author: 作者
-        website: 网站
+        homepage: 网站
         repo: 源码仓库
-        version: 当前版本
-        requires: 版本要求
+        version: 版本
+        requires: Halo 版本要求
         storage_location: 存储位置
         plugin_requires: 插件依赖
+        description: 描述
+        license: 协议
+        issues: 问题反馈
     settings:
       title: 主题设置
     custom_templates:
@@ -699,10 +740,10 @@ core:
         button: 设置为主菜单
         toast_success: 设置成功
       delete_menu:
-        title: 确定要删除该菜单吗？
+        title: 删除菜单
         description: 将同时删除该菜单下的所有菜单项，该操作不可恢复。
       delete_menu_item:
-        title: 确定要删除该菜单项吗？
+        title: 删除菜单项
         description: 将同时删除所有子菜单项，删除后将无法恢复。
       add_sub_menu_item:
         button: 新增子菜单项
@@ -759,25 +800,25 @@ core:
         install: 安装插件
     operations:
       reset:
-        title: 确定要重置插件的所有配置吗？
+        title: 重置插件配置
         description: 该操作会删除已保存的配置，重置为默认配置。
         toast_success: 重置配置成功
       uninstall:
-        title: 确定要卸载该插件吗？
+        title: 卸载插件
       uninstall_in_batch:
-        title: 确定要卸载所选插件吗？
+        title: 卸载所选插件
       uninstall_and_delete_config:
         button: 卸载并删除配置
-        title: 确定要卸载该插件以及对应的配置吗？
+        title: 卸载插件以及对应的配置
       uninstall_and_delete_config_in_batch:
         button: 卸载并删除配置
-        title: 确定要卸载所选插件以及对应的配置吗？
+        title: 卸载所选插件以及对应的配置
       uninstall_when_enabled:
         confirm_text: 停止运行并卸载
         description: 当前插件还在启用状态，将在停止运行后卸载，该操作不可恢复。
       change_status_in_batch:
-        activate_title: 确定要启用所选插件吗？
-        inactivate_title: 确定要停用所选插件吗？
+        activate_title: 启用所选插件
+        inactivate_title: 停用所选插件
       remote_download:
         title: 检测到了远程下载地址，是否需要下载？
         description: 请仔细鉴别此地址是否可信：{url}
@@ -812,14 +853,20 @@ core:
       header:
         title: 插件信息
       fields:
-        display_name: 名称
         description: 描述
         version: 版本
         requires: Halo 版本要求
-        author: 提供方
+        author: 作者
         license: 协议
         role_templates: 权限模板
         last_starttime: 最近一次启动
+        homepage: 网站
+        repo: 源码仓库
+        load_location: 存储位置
+        issues: 问题反馈
+      operations:
+        view_conditions:
+          button: 查看最近状态
     loader:
       toast:
         entry_load_failed: 加载插件入口文件失败
@@ -828,6 +875,14 @@ core:
       editor:
         providers:
           default: 默认编辑器
+    conditions_modal:
+      title: 插件最近状态
+      fields:
+        type: 类型
+        status: 状态
+        reason: 原因
+        message: 信息
+        last_transition_time: 时间
   user:
     title: 用户
     actions:
@@ -838,9 +893,9 @@ core:
       message: 当前没有符合筛选条件的用户，你可以尝试刷新或者创建新用户
     operations:
       delete:
-        title: 确定要删除该用户吗？
+        title: 删除用户
       delete_in_batch:
-        title: 确定要删除选中的用户吗？
+        title: 删除所选用户
       update_profile:
         title: 修改资料
       change_password:
@@ -865,7 +920,7 @@ core:
       fields:
         username:
           label: 用户名
-          validation: 请输入有效的用户名
+          validation: 只能包含数字、小写字母、. 和 - 符号，且不能以 . 和 - 符号开头和结尾
         display_name:
           label: 显示名称
         email:
@@ -908,6 +963,10 @@ core:
         bio: 描述
         creation_time: 注册时间
         identity_authentication: 登录方式
+        email_verified:
+          tooltip: 已验证
+        email_not_verified:
+          tooltip: 未验证
   role:
     title: 角色
     common:
@@ -920,7 +979,7 @@ core:
         provided_by_plugin: 由 {plugin} 提供
     operations:
       delete:
-        title: 确定要删除该角色吗？
+        title: 删除角色
         description: 该角色删除后，相关联的用户将被删除角色绑定，该操作不可恢复。
       create_based_on_this_role:
         button: 基于此角色创建
@@ -959,9 +1018,9 @@ core:
       setting: 设置
     operations:
       enable:
-        title: 确定要启用该身份认证方式吗？
+        title: 启用认证方式
       disable:
-        title: 确定要停用该身份认证方式吗？
+        title: 停用认证方式
       disable_privileged:
         tooltip: 系统保留的认证方式，无法禁用
     detail:
@@ -997,13 +1056,15 @@ core:
           button: 绑定
         unbind:
           button: 解绑
-          title: 确定要取消绑定 {display_name} 的登录方式吗？
+          title: 取消绑定 {display_name} 登录方式
       email_not_set:
         title: 设置电子邮箱
         description: 电子邮箱地址还未设置，点击下方按钮进行设置
       email_not_verified:
         title: 验证电子邮箱
         description: 电子邮箱地址还未验证，点击下方按钮进行验证
+      email_verified:
+        tooltip: 已验证
     pat:
       operations:
         delete:
@@ -1012,7 +1073,7 @@ core:
         revoke:
           button: 撤销
           title: 撤销个人令牌
-          description: 确定要撤销该个人令牌吗？
+          description: 撤销个人令牌
           toast_success: 撤销成功
         copy:
           title: 请立即复制并保存，Token 将仅显示一次。
@@ -1055,7 +1116,7 @@ core:
       fields:
         username:
           label: 用户名
-          validation: 请输入有效的用户名
+          validation: 只能包含数字、小写字母、. 和 - 符号，且不能以 . 和 - 符号开头和结尾
         display_name:
           label: 显示名称
         email:
@@ -1073,6 +1134,8 @@ core:
           label: 新密码
         confirm_password:
           label: 确认密码
+        old_password:
+          label: 旧密码
     email_verify_modal:
       titles:
         modify: 修改电子邮箱
@@ -1084,6 +1147,9 @@ core:
           label: 电子邮箱
         code:
           label: 验证码
+        password:
+          label: 验证密码
+          help: 当前账号的登录密码
       operations:
         send_code:
           buttons:
@@ -1111,7 +1177,7 @@ core:
         description: 确定要删除该消息吗？
   setting:
     title: 设置
-  actuator:
+  overview:
     title: 系统概览
     actions:
       copy:
@@ -1171,7 +1237,7 @@ core:
         button: 下载并恢复
       restore_by_backup:
         button: 恢复
-        title: 确认要从此备份进行恢复吗？
+        title: 从此备份进行恢复
     list:
       phases:
         pending: 准备中
@@ -1315,7 +1381,7 @@ core:
     Cache Management: 缓存
     Cache Manage: 缓存管理
     Notification Configuration: 通知配置
-    Configure Notifier: 配置通知器
+    role-template-notifier-config: 配置通知器
     Post Contributor: 允许投稿
     Post Author: 允许管理自己的文章
     Post Attachment Manager: 允许在文章中上传图片
@@ -1327,6 +1393,9 @@ core:
       custom_fields:
         label: 自定义
         validation: 当前 Key 已被占用
+      buttons:
+        expand: 查看更多
+        collapse: 收起
     default_editor:
       tabs:
         toc:
@@ -1345,11 +1414,10 @@ core:
         placeholder:
           options:
             placeholder: 输入 / 以选择输入类型
-        image:
-          upload:
-            error: 上传失败
-            click_retry: 点击重试
-            loading: 等待中
+        upload:
+          error: 上传失败
+          click_retry: 点击重试
+          loading: 等待中
           attachment:
             title: 附件库
           permalink:
@@ -1361,6 +1429,7 @@ core:
       toolbox:
         attachment: 选择附件
         show_hide_sidebar: 显示 / 隐藏侧边栏
+      title_placeholder: 请输入标题
     global_search:
       placeholder: 输入关键词以搜索
       no_results: 没有搜索结果
@@ -1395,7 +1464,7 @@ core:
       cropper_modal:
         title: 裁剪头像
       remove:
-        title: 确定要删除头像吗？
+        title: 删除头像
       tooltips:
         upload: 上传
         zoom_in: 放大
@@ -1406,6 +1475,16 @@ core:
     editor_provider_selector:
       tooltips:
         disallow: 内容格式不同，无法切换
+    uppy:
+      image_editor:
+        revert: 恢复
+        rotate: 旋转
+        zoom_in: 放大
+        zoom_out: 缩小
+        flip_horizontal: 水平翻转
+        aspect_ratio_square: 裁剪为正方形
+        aspect_ratio_landscape: 裁剪为横向 (16:9)
+        aspect_ratio_portrait: 裁剪为纵向 (9:16)
   composables:
     content_cache:
       toast_recovered: 已从缓存中恢复未保存的内容
@@ -1416,6 +1495,10 @@ core:
       creation_label: 创建 {text} 标签
     validation:
       trim: 不能以空格开头或结尾
+    verification_form:
+      no_action_defined: 未定义{label}接口
+      verify_success: "{label}成功"
+      verify_failed: "{label}失败"
   common:
     buttons:
       save: 保存
@@ -1454,6 +1537,7 @@ core:
       verify: 验证
       modify: 修改
       access: 访问
+      schedule_publish: 定时发布
     radio:
       "yes": 是
       "no": 否
@@ -1512,6 +1596,7 @@ core:
       not_activated: 未启用
       installed: 已安装
       not_installed: 未安装
+      starting_up: 启动中
     text:
       none: 无
       tip: 提示
@@ -1527,3 +1612,45 @@ core:
     empty:
       title: 没有可用工具
       message: 当前没有可用的工具，系统工具可能由插件提供
+  post_snapshots:
+    operations:
+      revert:
+        button: 恢复
+        title: 恢复快照
+        description: 确定要恢复该快照吗？此操作将根据这个快照创建一个新的快照并发布。
+        toast_success: 恢复成功
+      delete:
+        title: 删除快照
+        description: 确定要删除该快照吗？此操作无法恢复。
+      cleanup:
+        button: 清理
+        title: 清理快照
+        description: 确定要清理所有不再使用的快照吗？只会保留已发布、基础和草稿版本。
+        toast_empty: 没有需要清理的快照
+        toast_success: 清理完成
+    status:
+      released: 已发布
+      draft: 草稿
+      base: 基础
+    title: 文章版本历史
+  page_snapshots:
+    operations:
+      revert:
+        button: 恢复
+        title: 恢复快照
+        description: 确定要恢复该快照吗？此操作将根据这个快照创建一个新的快照并发布。
+        toast_success: 恢复成功
+      delete:
+        title: 删除快照
+        description: 确定要删除该快照吗？此操作无法恢复。
+      cleanup:
+        button: 清理
+        title: 清理快照
+        description: 确定要清理所有不再使用的快照吗？只会保留已发布、基础和草稿版本。
+        toast_empty: 没有需要清理的快照
+        toast_success: 清理完成
+    status:
+      released: 已发布
+      draft: 草稿
+      base: 基础
+    title: 页面版本历史

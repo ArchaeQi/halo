@@ -1,6 +1,5 @@
 <script lang="ts" setup>
-import type { Component } from "vue";
-import { computed } from "vue";
+import { computed, markRaw } from "vue";
 import type { Type } from "./interface";
 import {
   IconCheckboxCircle,
@@ -9,13 +8,15 @@ import {
   IconErrorWarning,
   IconInformation,
 } from "../../icons/icons";
+import type { FunctionalComponent, Raw } from "vue";
+import type { SVGAttributes } from "vue";
 
-const TypeIcons: Record<Type, Component> = {
-  success: IconCheckboxCircle,
-  info: IconInformation,
-  default: IconInformation,
-  warning: IconErrorWarning,
-  error: IconCloseCircle,
+const TypeIcons: Record<Type, Raw<FunctionalComponent<SVGAttributes>>> = {
+  success: markRaw(IconCheckboxCircle),
+  info: markRaw(IconInformation),
+  default: markRaw(IconInformation),
+  warning: markRaw(IconErrorWarning),
+  error: markRaw(IconCloseCircle),
 };
 
 const props = withDefaults(
@@ -54,8 +55,10 @@ const handleClose = () => {
           <component :is="TypeIcons[type]" />
         </slot>
       </div>
-      <div class="alert-title">
-        {{ title }}
+      <div v-if="title || $slots.title" class="alert-title">
+        <slot name="title">
+          {{ title }}
+        </slot>
       </div>
       <div v-if="closable" class="alert-close" @click="handleClose">
         <IconClose />

@@ -1,25 +1,24 @@
 <script lang="ts" setup>
+// types
+import type { Ref } from "vue";
 // core libs
 import { inject, ref } from "vue";
 import { useThemeLifeCycle } from "./composables/use-theme";
 
 // components
 import {
-  VTag,
-  IconMore,
   Dialog,
-  VAvatar,
+  IconMore,
   Toast,
-  VStatusDot,
-  VDropdown,
-  VDropdownItem,
-  VDropdownDivider,
+  VAvatar,
   VDescription,
   VDescriptionItem,
+  VDropdown,
+  VDropdownDivider,
+  VDropdownItem,
+  VStatusDot,
+  VTag,
 } from "@halo-dev/components";
-
-// types
-import type { Ref } from "vue";
 import type { Theme } from "@halo-dev/api-client";
 
 import { apiClient } from "@/utils/api-client";
@@ -32,6 +31,27 @@ const themesModal = inject<Ref<boolean>>("themesModal");
 
 const { isActivated, getFailedMessage, handleResetSettingConfig } =
   useThemeLifeCycle(selectedTheme);
+
+async function handleClearCache() {
+  Dialog.warning({
+    title: t("core.theme.operations.clear_templates_cache.title"),
+    description: t("core.theme.operations.clear_templates_cache.description"),
+    confirmText: t("core.common.buttons.confirm"),
+    cancelText: t("core.common.buttons.cancel"),
+    async onConfirm() {
+      if (!selectedTheme.value) {
+        console.error("No selected or activated theme");
+        return;
+      }
+
+      await apiClient.theme.invalidateCache({
+        name: selectedTheme.value?.metadata.name,
+      });
+
+      Toast.success(t("core.common.toast.operation_success"));
+    },
+  });
+}
 
 const handleReloadTheme = async () => {
   Dialog.warning({
@@ -110,6 +130,9 @@ const handleReloadTheme = async () => {
               <VDropdownItem type="danger" @click="handleReloadTheme">
                 {{ $t("core.theme.operations.reload.button") }}
               </VDropdownItem>
+              <VDropdownItem type="danger" @click="handleClearCache">
+                {{ $t("core.theme.operations.clear_templates_cache.button") }}
+              </VDropdownItem>
               <VDropdownItem type="danger" @click="handleResetSettingConfig">
                 {{ $t("core.common.buttons.reset") }}
               </VDropdownItem>
@@ -124,26 +147,23 @@ const handleReloadTheme = async () => {
             :content="selectedTheme?.metadata.name"
           />
           <VDescriptionItem
-            :label="$t('core.theme.detail.fields.author')"
-            :content="selectedTheme?.spec.author.name"
-          />
-          <VDescriptionItem :label="$t('core.theme.detail.fields.website')">
+            :label="$t('core.theme.detail.fields.description')"
+            :content="
+              selectedTheme?.spec.description || $t('core.common.text.none')
+            "
+          ></VDescriptionItem>
+          <VDescriptionItem :label="$t('core.theme.detail.fields.author')">
             <a
-              :href="selectedTheme?.spec.website"
+              v-if="selectedTheme?.spec.author"
+              :href="selectedTheme.spec.author.website || '#'"
               class="hover:text-gray-600"
               target="_blank"
             >
-              {{ selectedTheme?.spec.website }}
+              {{ selectedTheme.spec.author.name }}
             </a>
-          </VDescriptionItem>
-          <VDescriptionItem :label="$t('core.theme.detail.fields.repo')">
-            <a
-              :href="selectedTheme?.spec.repo"
-              class="hover:text-gray-600"
-              target="_blank"
-            >
-              {{ selectedTheme?.spec.repo }}
-            </a>
+            <span v-else>
+              {{ $t("core.common.text.none") }}
+            </span>
           </VDescriptionItem>
           <VDescriptionItem
             :label="$t('core.theme.detail.fields.version')"
@@ -153,6 +173,70 @@ const handleReloadTheme = async () => {
             :label="$t('core.theme.detail.fields.requires')"
             :content="selectedTheme?.spec.requires"
           />
+          <VDescriptionItem :label="$t('core.theme.detail.fields.homepage')">
+            <a
+              v-if="selectedTheme?.spec.homepage"
+              :href="selectedTheme.spec.homepage"
+              class="hover:text-gray-600"
+              target="_blank"
+            >
+              {{ selectedTheme.spec.homepage }}
+            </a>
+            <span v-else>
+              {{ $t("core.common.text.none") }}
+            </span>
+          </VDescriptionItem>
+          <VDescriptionItem :label="$t('core.theme.detail.fields.repo')">
+            <a
+              v-if="selectedTheme?.spec.repo"
+              :href="selectedTheme.spec.repo"
+              class="hover:text-gray-600"
+              target="_blank"
+            >
+              {{ selectedTheme.spec.repo }}
+            </a>
+            <span v-else>
+              {{ $t("core.common.text.none") }}
+            </span>
+          </VDescriptionItem>
+          <VDescriptionItem :label="$t('core.theme.detail.fields.issues')">
+            <a
+              v-if="selectedTheme?.spec.issues"
+              :href="selectedTheme.spec.issues"
+              class="hover:text-gray-600"
+              target="_blank"
+            >
+              {{ selectedTheme.spec.issues }}
+            </a>
+            <span v-else>
+              {{ $t("core.common.text.none") }}
+            </span>
+          </VDescriptionItem>
+          <VDescriptionItem :label="$t('core.theme.detail.fields.license')">
+            <ul
+              v-if="
+                selectedTheme?.spec.license &&
+                selectedTheme?.spec.license.length
+              "
+              class="list-inside"
+              :class="{ 'list-disc': selectedTheme?.spec.license.length > 1 }"
+            >
+              <li
+                v-for="(license, index) in selectedTheme.spec.license"
+                :key="index"
+              >
+                <a v-if="license.url" :href="license.url" target="_blank">
+                  {{ license.name }}
+                </a>
+                <span v-else>
+                  {{ license.name }}
+                </span>
+              </li>
+            </ul>
+            <span v-else>
+              {{ $t("core.common.text.none") }}
+            </span>
+          </VDescriptionItem>
           <VDescriptionItem
             :label="$t('core.theme.detail.fields.storage_location')"
             :content="selectedTheme?.status?.location"

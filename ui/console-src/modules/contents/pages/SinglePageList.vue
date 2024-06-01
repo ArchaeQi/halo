@@ -1,22 +1,23 @@
 <script lang="ts" setup>
 import {
+  Dialog,
+  IconAddCircle,
   IconArrowLeft,
   IconArrowRight,
-  IconAddCircle,
-  IconRefreshLine,
   IconPages,
+  IconRefreshLine,
+  Toast,
   VButton,
   VCard,
-  VPagination,
-  VSpace,
-  Dialog,
   VEmpty,
   VLoading,
   VPageHeader,
-  Toast,
+  VPagination,
+  VSpace,
 } from "@halo-dev/components";
 import SinglePageSettingModal from "./components/SinglePageSettingModal.vue";
-import { computed, ref, watch } from "vue";
+import type { Ref } from "vue";
+import { computed, provide, ref, watch } from "vue";
 import type { ListedSinglePage, SinglePage } from "@halo-dev/api-client";
 import { apiClient } from "@/utils/api-client";
 import { singlePageLabels } from "@/constants/labels";
@@ -24,8 +25,6 @@ import { useQuery } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
 import UserFilterDropdown from "@/components/filter/UserFilterDropdown.vue";
 import SinglePageListItem from "./components/SinglePageListItem.vue";
-import { provide } from "vue";
-import type { Ref } from "vue";
 import { useRouteQuery } from "@vueuse/router";
 
 const { t } = useI18n();
@@ -132,22 +131,20 @@ const {
     return data.items;
   },
   refetchInterval(data) {
-    const abnormalSinglePages = data?.filter((singlePage) => {
-      const { spec, metadata, status } = singlePage.page;
+    const hasAbnormalSinglePage = data?.some((singlePage) => {
+      const { spec, metadata } = singlePage.page;
       return (
         spec.deleted ||
-        (spec.publish &&
-          metadata.labels?.[singlePageLabels.PUBLISHED] !== "true") ||
-        (spec.releaseSnapshot === spec.headSnapshot && status?.inProgress)
+        metadata.labels?.[singlePageLabels.PUBLISHED] !== spec.publish + ""
       );
     });
-    return abnormalSinglePages?.length ? 1000 : false;
+    return hasAbnormalSinglePage ? 1000 : false;
   },
 });
 
 const handleOpenSettingModal = async (singlePage: SinglePage) => {
   const { data } =
-    await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+    await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
       name: singlePage.metadata.name,
     });
   selectedSinglePage.value = data;
@@ -156,6 +153,7 @@ const handleOpenSettingModal = async (singlePage: SinglePage) => {
 
 const onSettingModalClose = () => {
   selectedSinglePage.value = undefined;
+  settingModal.value = false;
   refetch();
 };
 
@@ -168,7 +166,7 @@ const handleSelectPrevious = async () => {
   );
   if (index > 0) {
     const { data } =
-      await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+      await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
         name: singlePages.value[index - 1].page.metadata.name,
       });
     selectedSinglePage.value = data;
@@ -191,7 +189,7 @@ const handleSelectNext = async () => {
   );
   if (index < singlePages.value.length - 1) {
     const { data } =
-      await apiClient.extension.singlePage.getcontentHaloRunV1alpha1SinglePage({
+      await apiClient.extension.singlePage.getContentHaloRunV1alpha1SinglePage({
         name: singlePages.value[index + 1].page.metadata.name,
       });
     selectedSinglePage.value = data;
@@ -242,7 +240,7 @@ const handleDeleteInBatch = async () => {
             return Promise.resolve();
           }
 
-          return apiClient.extension.singlePage.updatecontentHaloRunV1alpha1SinglePage(
+          return apiClient.extension.singlePage.updateContentHaloRunV1alpha1SinglePage(
             {
               name: page.metadata.name,
               singlePage: {
@@ -271,7 +269,7 @@ watch(selectedPageNames, (newValue) => {
 
 <template>
   <SinglePageSettingModal
-    v-model:visible="settingModal"
+    v-if="settingModal"
     :single-page="selectedSinglePage"
     @close="onSettingModalClose"
   >

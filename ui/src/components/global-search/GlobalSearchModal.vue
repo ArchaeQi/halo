@@ -1,24 +1,25 @@
 <script lang="ts" setup>
-import { useRoute, useRouter, type RouteLocationRaw } from "vue-router";
+import { type RouteLocationRaw, useRoute, useRouter } from "vue-router";
 import {
-  VModal,
-  VEntity,
-  VEntityField,
-  IconLink,
   IconBookRead,
   IconFolder,
-  IconSettings,
-  IconPalette,
+  IconLink,
   IconPages,
+  IconPalette,
+  IconSettings,
   IconUserSettings,
+  VEntity,
+  VEntityField,
+  VModal,
 } from "@halo-dev/components";
-import { computed, markRaw, ref, watch, type Component } from "vue";
+import { type Component, computed, markRaw, onMounted, ref, watch } from "vue";
 import Fuse from "fuse.js";
 import { apiClient } from "@/utils/api-client";
 import { usePermission } from "@/utils/permission";
 import { useThemeStore } from "@console/stores/theme";
 import { storeToRefs } from "pinia";
 import { useI18n } from "vue-i18n";
+import { useEventListener } from "@vueuse/core";
 
 const router = useRouter();
 const route = useRoute();
@@ -27,19 +28,11 @@ const { t } = useI18n();
 const { currentUserHasPermission } = usePermission();
 const { activatedTheme } = storeToRefs(useThemeStore());
 
-const props = withDefaults(
-  defineProps<{
-    visible: boolean;
-  }>(),
-  {
-    visible: false,
-  }
-);
-
 const emit = defineEmits<{
-  (e: "update:visible", visible: boolean): void;
+  (e: "close"): void;
 }>();
 
+const modal = ref<InstanceType<typeof VModal> | null>(null);
 const globalSearchInput = ref<HTMLInputElement | null>(null);
 const keyword = ref("");
 
@@ -86,7 +79,7 @@ const handleBuildSearchIndex = () => {
   });
 
   if (currentUserHasPermission(["system:users:view"])) {
-    apiClient.extension.user.listv1alpha1User().then((response) => {
+    apiClient.extension.user.listV1alpha1User().then((response) => {
       response.data.items.forEach((user) => {
         fuse.add({
           title: user.spec.displayName,
@@ -107,7 +100,7 @@ const handleBuildSearchIndex = () => {
 
   if (currentUserHasPermission(["system:plugins:view"])) {
     apiClient.extension.plugin
-      .listpluginHaloRunV1alpha1Plugin()
+      .listPluginHaloRunV1alpha1Plugin()
       .then((response) => {
         response.data.items.forEach((plugin) => {
           fuse.add({
@@ -129,7 +122,7 @@ const handleBuildSearchIndex = () => {
 
   if (currentUserHasPermission(["system:posts:view"])) {
     apiClient.extension.post
-      .listcontentHaloRunV1alpha1Post()
+      .listContentHaloRunV1alpha1Post()
       .then((response) => {
         response.data.items.forEach((post) => {
           fuse.add({
@@ -149,7 +142,7 @@ const handleBuildSearchIndex = () => {
       });
 
     apiClient.extension.category
-      .listcontentHaloRunV1alpha1Category({
+      .listContentHaloRunV1alpha1Category({
         sort: ["metadata.creationTimestamp,desc"],
       })
       .then((response) => {
@@ -171,7 +164,7 @@ const handleBuildSearchIndex = () => {
       });
 
     apiClient.extension.tag
-      .listcontentHaloRunV1alpha1Tag({
+      .listContentHaloRunV1alpha1Tag({
         sort: ["metadata.creationTimestamp,desc"],
       })
       .then((response) => {
@@ -195,7 +188,7 @@ const handleBuildSearchIndex = () => {
 
   if (currentUserHasPermission(["system:singlepages:view"])) {
     apiClient.extension.singlePage
-      .listcontentHaloRunV1alpha1SinglePage()
+      .listContentHaloRunV1alpha1SinglePage()
       .then((response) => {
         response.data.items.forEach((singlePage) => {
           fuse.add({
@@ -217,7 +210,7 @@ const handleBuildSearchIndex = () => {
 
   if (currentUserHasPermission(["system:attachments:view"])) {
     apiClient.extension.storage.attachment
-      .liststorageHaloRunV1alpha1Attachment()
+      .listStorageHaloRunV1alpha1Attachment()
       .then((response) => {
         response.data.items.forEach((attachment) => {
           fuse.add({
@@ -242,7 +235,7 @@ const handleBuildSearchIndex = () => {
     currentUserHasPermission(["system:configmaps:view"])
   ) {
     apiClient.extension.setting
-      .getv1alpha1Setting({ name: "system" })
+      .getV1alpha1Setting({ name: "system" })
       .then((response) => {
         response.data.spec.forms.forEach((form) => {
           fuse.add({
@@ -288,10 +281,6 @@ const handleBuildSearchIndex = () => {
 };
 
 const handleKeydown = (e: KeyboardEvent) => {
-  if (!props.visible) {
-    return;
-  }
-
   const { key, ctrlKey } = e;
 
   if (key === "ArrowUp" || (key === "k" && ctrlKey)) {
@@ -313,7 +302,7 @@ const handleKeydown = (e: KeyboardEvent) => {
   }
 
   if (key === "Escape") {
-    onVisibleChange(false);
+    modal.value?.close();
     e.preventDefault();
   }
 };
@@ -328,7 +317,7 @@ const handleRoute = async (item: SearchableItem) => {
     }
   }
   router.push(item.route);
-  emit("update:visible", false);
+  modal.value?.close();
 };
 
 watch(
@@ -349,39 +338,26 @@ watch(
   }
 );
 
-watch(
-  () => props.visible,
-  (visible) => {
-    if (visible) {
-      handleBuildSearchIndex();
+onMounted(() => {
+  handleBuildSearchIndex();
 
-      setTimeout(() => {
-        globalSearchInput.value?.focus();
-      }, 100);
+  setTimeout(() => {
+    globalSearchInput.value?.focus();
+  }, 100);
+});
 
-      document.addEventListener("keydown", handleKeydown);
-    } else {
-      document.removeEventListener("keydown", handleKeydown);
-      keyword.value = "";
-      selectedIndex.value = 0;
-    }
-  }
-);
-
-const onVisibleChange = (visible: boolean) => {
-  emit("update:visible", visible);
-};
+useEventListener("keydown", handleKeydown);
 </script>
 
 <template>
   <VModal
-    :visible="visible"
+    ref="modal"
     :body-class="['!p-0']"
     :mount-to-body="true"
     :width="650"
     :centered="false"
     :layer-closable="true"
-    @update:visible="onVisibleChange"
+    @close="emit('close')"
   >
     <div id="search-input" class="border-b border-gray-100 px-4 py-2.5">
       <input

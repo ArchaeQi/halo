@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.BooleanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.Role;
 import run.halo.app.core.extension.RoleBinding;
 import run.halo.app.core.extension.User;
+import run.halo.app.event.user.PasswordChangedEvent;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.exception.ExtensionNotFoundException;
 import run.halo.app.infra.SystemConfigurableEnvironmentFetcher;
@@ -38,6 +40,7 @@ public class UserServiceImpl implements UserService {
 
     private final SystemConfigurableEnvironmentFetcher environmentFetcher;
 
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public Mono<User> getUser(String username) {
@@ -59,7 +62,8 @@ public class UserServiceImpl implements UserService {
             .flatMap(user -> {
                 user.getSpec().setPassword(newPassword);
                 return client.update(user);
-            });
+            })
+            .doOnNext(user -> publishPasswordChangedEvent(username));
     }
 
     @Override
@@ -76,7 +80,8 @@ public class UserServiceImpl implements UserService {
             .flatMap(user -> {
                 user.getSpec().setPassword(passwordEncoder.encode(rawPassword));
                 return client.update(user);
-            });
+            })
+            .doOnNext(user -> publishPasswordChangedEvent(username));
     }
 
     @Override
@@ -175,5 +180,25 @@ public class UserServiceImpl implements UserService {
             .then(Mono.defer(() -> client.create(user)
                 .flatMap(newUser -> grantRoles(user.getMetadata().getName(), roleNames)))
             );
+    }
+
+    @Override
+    public Mono<Boolean> confirmPassword(String username, String rawPassword) {
+        return getUser(username)
+            .filter(user -> {
+                if (!StringUtils.hasText(user.getSpec().getPassword())) {
+                    // If the password is not set, return true directly.
+                    return true;
+                }
+                if (!StringUtils.hasText(rawPassword)) {
+                    return false;
+                }
+                return passwordEncoder.matches(rawPassword, user.getSpec().getPassword());
+            })
+            .hasElement();
+    }
+
+    void publishPasswordChangedEvent(String username) {
+        eventPublisher.publishEvent(new PasswordChangedEvent(this, username));
     }
 }

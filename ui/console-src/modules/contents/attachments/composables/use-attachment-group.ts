@@ -14,19 +14,21 @@ export function useFetchAttachmentGroup(): useFetchAttachmentGroupReturn {
     queryKey: ["attachment-groups"],
     queryFn: async () => {
       const { data } =
-        await apiClient.extension.storage.group.liststorageHaloRunV1alpha1Group(
+        await apiClient.extension.storage.group.listStorageHaloRunV1alpha1Group(
           {
             labelSelector: ["!halo.run/hidden"],
+            sort: ["metadata.creationTimestamp,asc"],
           }
         );
+
       return data.items;
     },
     refetchInterval(data) {
-      const deletingGroups = data?.filter(
+      const hasDeletingGroup = data?.some(
         (group) => !!group.metadata.deletionTimestamp
       );
 
-      return deletingGroups?.length ? 1000 : false;
+      return hasDeletingGroup ? 1000 : false;
     },
   });
 

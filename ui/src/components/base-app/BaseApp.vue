@@ -1,41 +1,25 @@
 <script lang="ts" setup>
-import { RouterView, useRoute } from "vue-router";
-import { computed, watch, reactive, onMounted, inject } from "vue";
-import { useTitle } from "@vueuse/core";
+import { RouterView } from "vue-router";
+import { computed, inject, onMounted, reactive } from "vue";
 import { useFavicon } from "@vueuse/core";
-import { useI18n } from "vue-i18n";
 import {
   useOverlayScrollbars,
   type UseOverlayScrollbarsParams,
 } from "overlayscrollbars-vue";
 import type { FormKitConfig } from "@formkit/core";
 import { i18n } from "@/locales";
-import { AppName } from "@/constants/app";
 import { useGlobalInfoStore } from "@/stores/global-info";
+import { storeToRefs } from "pinia";
+import { useAppTitle } from "@/composables/use-title";
 
-const { t } = useI18n();
+useAppTitle();
 
-const globalInfoStore = useGlobalInfoStore();
-
-const route = useRoute();
-const title = useTitle();
-
-watch(
-  () => route.name,
-  () => {
-    const { title: routeTitle } = route.meta;
-    if (routeTitle) {
-      title.value = `${t(routeTitle)} - ${AppName}`;
-      return;
-    }
-    title.value = AppName;
-  }
-);
+const { globalInfo } = storeToRefs(useGlobalInfoStore());
 
 // Favicon
 const defaultFavicon = "/console/favicon.ico";
 const favicon = computed(() => {
-  return globalInfoStore.globalInfo?.favicon || defaultFavicon;
+  return globalInfo.value?.favicon || defaultFavicon;
 });
 
 useFavicon(favicon);
@@ -71,6 +55,7 @@ formkitConfig.locale = formkitLocales[i18n.global.locale.value] || "zh";
 function setViewportProperty(doc: HTMLElement) {
   let prevClientHeight: number;
   const customVar = "--vh";
+
   function handleResize() {
     const clientHeight = doc.clientHeight;
     if (clientHeight === prevClientHeight) return;
@@ -79,9 +64,11 @@ function setViewportProperty(doc: HTMLElement) {
       prevClientHeight = clientHeight;
     });
   }
+
   handleResize();
   return handleResize;
 }
+
 window.addEventListener(
   "resize",
   setViewportProperty(document.documentElement)
@@ -100,7 +87,7 @@ body {
 html,
 body,
 #app {
-  height: 100%;
+  min-height: 100vh;
 }
 
 *,
