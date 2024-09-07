@@ -2,7 +2,6 @@ package run.halo.app.core.extension.endpoint;
 
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED;
 import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
-import static java.util.Comparator.comparing;
 import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
 import static org.springdoc.core.fn.builders.content.Builder.contentBuilder;
 import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
@@ -12,12 +11,13 @@ import static org.springframework.boot.convert.ApplicationConversionService.getS
 import static org.springframework.core.io.buffer.DataBufferUtils.write;
 import static org.springframework.web.reactive.function.server.RequestPredicates.contentType;
 import static run.halo.app.extension.ListResult.generateGenericClass;
+import static run.halo.app.extension.index.query.QueryFactory.contains;
+import static run.halo.app.extension.index.query.QueryFactory.equal;
+import static run.halo.app.extension.index.query.QueryFactory.or;
 import static run.halo.app.extension.router.QueryParamBuildUtil.sortParameter;
-import static run.halo.app.extension.router.selector.SelectorUtil.labelAndFieldSelectorToPredicate;
 import static run.halo.app.infra.utils.FileUtils.deleteFileSilently;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
-import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -27,30 +27,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.springdoc.core.fn.builders.operation.Builder;
 import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
-import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.web.WebProperties;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.CacheControl;
@@ -58,10 +45,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.http.codec.multipart.FormFieldPart;
 import org.springframework.http.codec.multipart.Part;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
-import org.springframework.util.FileSystemUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -69,9 +53,7 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
-import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ServerWebInputException;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
@@ -80,11 +62,11 @@ import run.halo.app.core.extension.Plugin;
 import run.halo.app.core.extension.Setting;
 import run.halo.app.core.extension.service.PluginService;
 import run.halo.app.core.extension.theme.SettingUtils;
-import run.halo.app.extension.Comparators;
 import run.halo.app.extension.ConfigMap;
+import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.extension.router.IListRequest;
-import run.halo.app.extension.router.IListRequest.QueryListRequest;
+import run.halo.app.extension.router.SortableRequest;
 import run.halo.app.infra.ReactiveUrlDataBufferFetcher;
 import run.halo.app.plugin.PluginNotFoundException;
 
@@ -98,8 +80,6 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
 
     private final ReactiveUrlDataBufferFetcher reactiveUrlDataBufferFetcher;
 
-    private final BufferedPluginBundleResource bufferedPluginBundleResource;
-
     private final WebProperties webProperties;
 
     private final Scheduler scheduler = Schedulers.boundedElastic();
@@ -111,18 +91,16 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
     public PluginEndpoint(ReactiveExtensionClient client,
         PluginService pluginService,
         ReactiveUrlDataBufferFetcher reactiveUrlDataBufferFetcher,
-        BufferedPluginBundleResource bufferedPluginBundleResource,
         WebProperties webProperties) {
         this.client = client;
         this.pluginService = pluginService;
         this.reactiveUrlDataBufferFetcher = reactiveUrlDataBufferFetcher;
-        this.bufferedPluginBundleResource = bufferedPluginBundleResource;
         this.webProperties = webProperties;
     }
 
     @Override
     public RouterFunction<ServerResponse> endpoint() {
-        final var tag = "api.console.halo.run/v1alpha1/Plugin";
+        var tag = "PluginV1alpha1Console";
         return SpringdocRouteBuilder.route()
             .POST("plugins/install", contentType(MediaType.MULTIPART_FORM_DATA),
                 this::install, builder -> builder.operationId("InstallPlugin")
@@ -326,52 +304,38 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
     }
 
     private Mono<ServerResponse> fetchJsBundle(ServerRequest request) {
-        Optional<String> versionOption = request.queryParam("v");
-        if (versionOption.isEmpty()) {
-            return pluginService.generateJsBundleVersion()
+        var versionOption = request.queryParam("v");
+        return versionOption.map(s -> pluginService.getJsBundle(s).flatMap(
+                jsRes -> {
+                    var bodyBuilder = ServerResponse.ok()
+                        .cacheControl(bundleCacheControl)
+                        .contentType(MediaType.valueOf("text/javascript"));
+                    if (useLastModified) {
+                        try {
+                            var lastModified = Instant.ofEpochMilli(jsRes.lastModified());
+                            bodyBuilder = bodyBuilder.lastModified(lastModified);
+                        } catch (IOException e) {
+                            if (e instanceof FileNotFoundException) {
+                                return Mono.error(new NoResourceFoundException("bundle.js"));
+                            }
+                            return Mono.error(e);
+                        }
+                    }
+                    return bodyBuilder.body(BodyInserters.fromResource(jsRes));
+                }))
+            .orElseGet(() -> pluginService.generateBundleVersion()
                 .flatMap(version -> ServerResponse
                     .temporaryRedirect(buildJsBundleUri("js", version))
                     .cacheControl(CacheControl.noStore())
-                    .build());
-        }
-        var version = versionOption.get();
-        return bufferedPluginBundleResource.getJsBundle(version, pluginService::uglifyJsBundle)
-            .flatMap(jsRes -> {
-                var bodyBuilder = ServerResponse.ok()
-                    .cacheControl(bundleCacheControl)
-                    .contentType(MediaType.valueOf("text/javascript"));
-                if (useLastModified) {
-                    try {
-                        var lastModified = Instant.ofEpochMilli(jsRes.lastModified());
-                        bodyBuilder = bodyBuilder.lastModified(lastModified);
-                    } catch (IOException e) {
-                        if (e instanceof FileNotFoundException) {
-                            return Mono.error(new NoResourceFoundException("bundle.js"));
-                        }
-                        return Mono.error(e);
-                    }
-                }
-                return bodyBuilder.body(BodyInserters.fromResource(jsRes));
-            });
+                    .build()));
     }
 
     private Mono<ServerResponse> fetchCssBundle(ServerRequest request) {
-        Optional<String> versionOption = request.queryParam("v");
-        if (versionOption.isEmpty()) {
-            return pluginService.generateJsBundleVersion()
-                .flatMap(version -> ServerResponse
-                    .temporaryRedirect(buildJsBundleUri("css", version))
-                    .cacheControl(CacheControl.noStore())
-                    .build());
-        }
-
-        var version = versionOption.get();
-        return bufferedPluginBundleResource.getCssBundle(version, pluginService::uglifyCssBundle)
-            .flatMap(cssRes -> {
+        return request.queryParam("v")
+            .map(s -> pluginService.getCssBundle(s).flatMap(cssRes -> {
                 var bodyBuilder = ServerResponse.ok()
                     .cacheControl(bundleCacheControl)
                     .contentType(MediaType.valueOf("text/css"));
-
                 if (useLastModified) {
                     try {
                         var lastModified = Instant.ofEpochMilli(cssRes.lastModified());
@@ -383,9 +347,14 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
                         return Mono.error(e);
                     }
                 }
-
                 return bodyBuilder.body(BodyInserters.fromResource(cssRes));
-            });
+            }))
+            .orElseGet(() -> pluginService.generateBundleVersion()
+                .flatMap(version -> ServerResponse
+                    .temporaryRedirect(buildJsBundleUri("css", version))
+                    .cacheControl(CacheControl.noStore())
+                    .build()));
+
     }
 
     URI buildJsBundleUri(String type, String version) {
@@ -574,13 +543,10 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
             .flatMap(resourceClosure);
     }
 
-    public static class ListRequest extends QueryListRequest {
-
-        private final ServerWebExchange exchange;
+    public static class ListRequest extends SortableRequest {
 
         public ListRequest(ServerRequest request) {
-            super(request.queryParams());
-            this.exchange = request.exchange();
+            super(request.exchange());
         }
 
         @Schema(name = "keyword", description = "Keyword of plugin name or description")
@@ -594,69 +560,35 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
             return enabled == null ? null : getSharedInstance().convert(enabled, Boolean.class);
         }
 
-        @ArraySchema(uniqueItems = true,
-            arraySchema = @Schema(name = "sort",
-                description = "Sort property and direction of the list result. Supported fields: "
-                    + "creationTimestamp"),
-            schema = @Schema(description = "like field,asc or field,desc",
-                implementation = String.class,
-                example = "creationTimestamp,desc"))
+        @Override
         public Sort getSort() {
-            return SortResolver.defaultInstance.resolve(exchange);
+            var orders = super.getSort().stream()
+                .map(order -> {
+                    if ("creationTimestamp".equals(order.getProperty())) {
+                        return order.withProperty("metadata.creationTimestamp");
+                    }
+                    return order;
+                })
+                .toList();
+            return Sort.by(orders);
         }
 
-        public Predicate<Plugin> toPredicate() {
-            Predicate<Plugin> displayNamePredicate = plugin -> {
-                var keyword = getKeyword();
-                if (!StringUtils.hasText(keyword)) {
-                    return true;
-                }
-                var displayName = plugin.getSpec().getDisplayName();
-                if (!StringUtils.hasText(displayName)) {
-                    return false;
-                }
-                return displayName.toLowerCase().contains(keyword.trim().toLowerCase());
-            };
-            Predicate<Plugin> descriptionPredicate = plugin -> {
-                var keyword = getKeyword();
-                if (!StringUtils.hasText(keyword)) {
-                    return true;
-                }
-                var description = plugin.getSpec().getDescription();
-                if (!StringUtils.hasText(description)) {
-                    return false;
-                }
-                return description.toLowerCase().contains(keyword.trim().toLowerCase());
-            };
-            Predicate<Plugin> enablePredicate = plugin -> {
-                var enabled = getEnabled();
-                if (enabled == null) {
-                    return true;
-                }
-                return Objects.equals(enabled, plugin.getSpec().getEnabled());
-            };
-            return displayNamePredicate.or(descriptionPredicate)
-                .and(enablePredicate)
-                .and(labelAndFieldSelectorToPredicate(getLabelSelector(), getFieldSelector()));
-        }
+        @Override
+        public ListOptions toListOptions() {
+            var builder = ListOptions.builder(super.toListOptions());
 
-        public Comparator<Plugin> toComparator() {
-            var sort = getSort();
-            var ctOrder = sort.getOrderFor("creationTimestamp");
-            List<Comparator<Plugin>> comparators = new ArrayList<>();
-            if (ctOrder != null) {
-                Comparator<Plugin> comparator =
-                    comparing(plugin -> plugin.getMetadata().getCreationTimestamp());
-                if (ctOrder.isDescending()) {
-                    comparator = comparator.reversed();
-                }
-                comparators.add(comparator);
-            }
-            comparators.add(Comparators.compareCreationTimestamp(false));
-            comparators.add(Comparators.compareName(true));
-            return comparators.stream()
-                .reduce(Comparator::thenComparing)
-                .orElse(null);
+            Optional.ofNullable(queryParams.getFirst("keyword"))
+                .filter(StringUtils::hasText)
+                .ifPresent(keyword -> builder.andQuery(or(
+                    contains("spec.displayName", keyword),
+                    contains("spec.description", keyword)
+                )));
+
+            Optional.ofNullable(queryParams.getFirst("enabled"))
+                .map(Boolean::parseBoolean)
+                .ifPresent(enabled -> builder.andQuery(equal("spec.enabled", enabled.toString())));
+
+            return builder.build();
         }
 
         public static void buildParameters(Builder builder) {
@@ -680,15 +612,11 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
     Mono<ServerResponse> list(ServerRequest request) {
         return Mono.just(request)
             .map(ListRequest::new)
-            .flatMap(listRequest -> {
-                var predicate = listRequest.toPredicate();
-                var comparator = listRequest.toComparator();
-                return client.list(Plugin.class,
-                    predicate,
-                    comparator,
-                    listRequest.getPage(),
-                    listRequest.getSize());
-            })
+            .flatMap(listRequest -> client.listBy(
+                Plugin.class,
+                listRequest.toListOptions(),
+                listRequest.toPageRequest()
+            ))
             .flatMap(listResult -> ServerResponse.ok().bodyValue(listResult));
     }
 
@@ -763,114 +691,6 @@ public class PluginEndpoint implements CustomEndpoint, InitializingBean {
         return Mono.fromCallable(() -> Files.createTempFile("halo-plugin-", ".jar"))
             .flatMap(path -> write(content, path).thenReturn(path))
             .subscribeOn(this.scheduler);
-    }
-
-    @Component
-    static class BufferedPluginBundleResource implements DisposableBean {
-
-        private final AtomicReference<FileSystemResource> jsBundle = new AtomicReference<>();
-        private final AtomicReference<FileSystemResource> cssBundle = new AtomicReference<>();
-
-        private final ReadWriteLock jsLock = new ReentrantReadWriteLock();
-        private final ReadWriteLock cssLock = new ReentrantReadWriteLock();
-
-        private Path tempDir;
-
-        public Mono<Resource> getJsBundle(String version,
-            Supplier<Flux<DataBuffer>> jsSupplier) {
-            var fileName = tempFileName(version, ".js");
-            return Mono.<Resource>defer(() -> {
-                jsLock.readLock().lock();
-                try {
-                    var jsBundleResource = jsBundle.get();
-                    if (getResourceIfNotChange(fileName, jsBundleResource) != null) {
-                        return Mono.just(jsBundleResource);
-                    }
-                } finally {
-                    jsLock.readLock().unlock();
-                }
-
-                jsLock.writeLock().lock();
-                try {
-                    var oldJsBundle = jsBundle.get();
-                    return writeBundle(fileName, jsSupplier)
-                        .doOnNext(newRes -> jsBundle.compareAndSet(oldJsBundle, newRes));
-                } finally {
-                    jsLock.writeLock().unlock();
-                }
-            }).subscribeOn(Schedulers.boundedElastic());
-        }
-
-        public Mono<Resource> getCssBundle(String version,
-            Supplier<Flux<DataBuffer>> cssSupplier) {
-            var fileName = tempFileName(version, ".css");
-            return Mono.<Resource>defer(() -> {
-                cssLock.readLock().lock();
-                try {
-                    var cssBundleResource = cssBundle.get();
-                    if (getResourceIfNotChange(fileName, cssBundleResource) != null) {
-                        return Mono.just(cssBundleResource);
-                    }
-                } finally {
-                    cssLock.readLock().unlock();
-                }
-
-                cssLock.writeLock().lock();
-                try {
-                    var oldCssBundle = cssBundle.get();
-                    return writeBundle(fileName, cssSupplier)
-                        .doOnNext(newRes -> cssBundle.compareAndSet(oldCssBundle, newRes));
-                } finally {
-                    cssLock.writeLock().unlock();
-                }
-            }).subscribeOn(Schedulers.boundedElastic());
-        }
-
-        @Nullable
-        private Resource getResourceIfNotChange(String fileName, Resource resource) {
-            if (resource != null && resource.exists() && fileName.equals(resource.getFilename())) {
-                return resource;
-            }
-            return null;
-        }
-
-        private Mono<FileSystemResource> writeBundle(String fileName,
-            Supplier<Flux<DataBuffer>> dataSupplier) {
-            return Mono.defer(
-                () -> {
-                    var filePath = createTempFileToStore(fileName);
-                    return DataBufferUtils.write(dataSupplier.get(), filePath)
-                        .then(Mono.fromSupplier(() -> new FileSystemResource(filePath)));
-                });
-        }
-
-        private Path createTempFileToStore(String fileName) {
-            try {
-                if (tempDir == null || !Files.exists(tempDir)) {
-                    this.tempDir = Files.createTempDirectory("halo-plugin-bundle");
-                }
-                var path = tempDir.resolve(fileName);
-                Files.deleteIfExists(path);
-                return Files.createFile(path);
-            } catch (IOException e) {
-                throw new ServerWebInputException("Failed to create temp file.", null, e);
-            }
-        }
-
-        private String tempFileName(String v, String suffix) {
-            Assert.notNull(v, "Version must not be null");
-            Assert.notNull(suffix, "Suffix must not be null");
-            return v + suffix;
-        }
-
-        @Override
-        public void destroy() throws Exception {
-            if (tempDir != null && Files.exists(tempDir)) {
-                FileSystemUtils.deleteRecursively(tempDir);
-            }
-            this.jsBundle.set(null);
-            this.cssBundle.set(null);
-        }
     }
 
 }

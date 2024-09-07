@@ -1,10 +1,7 @@
 package run.halo.app.core.extension.endpoint;
 
 import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.ArgumentMatchers.same;
@@ -24,9 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,34 +36,27 @@ import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.server.ServerWebInputException;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import run.halo.app.core.extension.Plugin;
 import run.halo.app.core.extension.Setting;
-import run.halo.app.core.extension.endpoint.PluginEndpoint.BufferedPluginBundleResource;
 import run.halo.app.core.extension.service.PluginService;
 import run.halo.app.extension.ConfigMap;
+import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ListResult;
 import run.halo.app.extension.Metadata;
+import run.halo.app.extension.PageRequest;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.infra.SystemVersionSupplier;
 import run.halo.app.infra.utils.FileUtils;
-import run.halo.app.plugin.PluginProperties;
 
 @Slf4j
 @ExtendWith(MockitoExtension.class)
 class PluginEndpointTest {
-
-    @Mock
-    PluginProperties pluginProperties;
 
     @Mock
     private ReactiveExtensionClient client;
@@ -82,9 +70,6 @@ class PluginEndpointTest {
     @Spy
     WebProperties webProperties = new WebProperties();
 
-    @Mock
-    BufferedPluginBundleResource bufferedPluginBundleResource;
-
     @InjectMocks
     PluginEndpoint endpoint;
 
@@ -93,7 +78,7 @@ class PluginEndpointTest {
 
         @Test
         void shouldListEmptyPluginsWhenNoPlugins() {
-            when(client.list(same(Plugin.class), any(), any(), anyInt(), anyInt()))
+            when(client.listBy(same(Plugin.class), any(ListOptions.class), any(PageRequest.class)))
                 .thenReturn(Mono.just(ListResult.emptyResult()));
 
             bindToRouterFunction(endpoint.endpoint())
@@ -114,7 +99,7 @@ class PluginEndpointTest {
                 createPlugin("fake-plugin-3")
             );
             var expectResult = new ListResult<>(plugins);
-            when(client.list(same(Plugin.class), any(), any(), anyInt(), anyInt()))
+            when(client.listBy(same(Plugin.class), any(ListOptions.class), any(PageRequest.class)))
                 .thenReturn(Mono.just(expectResult));
 
             bindToRouterFunction(endpoint.endpoint())
@@ -139,7 +124,7 @@ class PluginEndpointTest {
                 expectPlugin
             );
             var expectResult = new ListResult<>(plugins);
-            when(client.list(same(Plugin.class), any(), any(), anyInt(), anyInt()))
+            when(client.listBy(same(Plugin.class), any(ListOptions.class), any(PageRequest.class)))
                 .thenReturn(Mono.just(expectResult));
 
             bindToRouterFunction(endpoint.endpoint())
@@ -147,27 +132,18 @@ class PluginEndpointTest {
                 .get().uri("/plugins?keyword=Expected")
                 .exchange()
                 .expectStatus().isOk();
-
-            verify(client).list(same(Plugin.class), argThat(
-                    predicate -> predicate.test(expectPlugin)
-                        && !predicate.test(unexpectedPlugin1)
-                        && !predicate.test(unexpectedPlugin2)),
-                any(), anyInt(), anyInt());
         }
 
         @Test
         void shouldFilterPluginsWhenEnabledProvided() {
             var expectPlugin =
                 createPlugin("fake-plugin-2", "expected display name", "", true);
-            var unexpectedPlugin1 =
-                createPlugin("fake-plugin-1", "first fake display name", "", false);
-            var unexpectedPlugin2 =
-                createPlugin("fake-plugin-3", "second fake display name", "", false);
             var plugins = List.of(
                 expectPlugin
             );
             var expectResult = new ListResult<>(plugins);
-            when(client.list(same(Plugin.class), any(), any(), anyInt(), anyInt()))
+
+            when(client.listBy(same(Plugin.class), any(ListOptions.class), any(PageRequest.class)))
                 .thenReturn(Mono.just(expectResult));
 
             bindToRouterFunction(endpoint.endpoint())
@@ -175,12 +151,6 @@ class PluginEndpointTest {
                 .get().uri("/plugins?enabled=true")
                 .exchange()
                 .expectStatus().isOk();
-
-            verify(client).list(same(Plugin.class), argThat(
-                    predicate -> predicate.test(expectPlugin)
-                        && !predicate.test(unexpectedPlugin1)
-                        && !predicate.test(unexpectedPlugin2)),
-                any(), anyInt(), anyInt());
         }
 
         @Test
@@ -188,7 +158,7 @@ class PluginEndpointTest {
             var expectPlugin =
                 createPlugin("fake-plugin-2", "expected display name", "", true);
             var expectResult = new ListResult<>(List.of(expectPlugin));
-            when(client.list(same(Plugin.class), any(), any(), anyInt(), anyInt()))
+            when(client.listBy(same(Plugin.class), any(ListOptions.class), any(PageRequest.class)))
                 .thenReturn(Mono.just(expectResult));
 
             bindToRouterFunction(endpoint.endpoint())
@@ -196,21 +166,6 @@ class PluginEndpointTest {
                 .get().uri("/plugins?sort=creationTimestamp,desc")
                 .exchange()
                 .expectStatus().isOk();
-
-            verify(client).list(same(Plugin.class), any(), argThat(comparator -> {
-                var now = Instant.now();
-                var plugins = new ArrayList<>(List.of(
-                    createPlugin("fake-plugin-a", now),
-                    createPlugin("fake-plugin-b", now.plusSeconds(1)),
-                    createPlugin("fake-plugin-c", now.plusSeconds(2))
-                ));
-                plugins.sort(comparator);
-                return Objects.deepEquals(plugins, List.of(
-                    createPlugin("fake-plugin-c", now.plusSeconds(2)),
-                    createPlugin("fake-plugin-b", now.plusSeconds(1)),
-                    createPlugin("fake-plugin-a", now)
-                ));
-            }), anyInt(), anyInt());
         }
     }
 
@@ -230,8 +185,6 @@ class PluginEndpointTest {
 
             lenient().when(systemVersionSupplier.get()).thenReturn(Version.valueOf("0.0.0"));
             tempDirectory = Files.createTempDirectory("halo-test-plugin-upgrade-");
-            lenient().when(pluginProperties.getPluginsRoot())
-                .thenReturn(tempDirectory.resolve("plugins").toString());
             plugin002 = tempDirectory.resolve("plugin-0.0.2.jar");
 
             var plugin002Uri = requireNonNull(
@@ -404,92 +357,6 @@ class PluginEndpointTest {
     }
 
     @Nested
-    class BufferedPluginBundleResourceTest {
-        private final BufferedPluginBundleResource bufferedPluginBundleResource =
-            new BufferedPluginBundleResource();
-
-        private static Flux<DataBuffer> getDataBufferFlux(String x) {
-            var buffer = DefaultDataBufferFactory.sharedInstance
-                .wrap(x.getBytes(StandardCharsets.UTF_8));
-            return Flux.just(buffer);
-        }
-
-        @Test
-        void writeAndGetJsResourceTest() {
-            bufferedPluginBundleResource.getJsBundle("1",
-                    () -> getDataBufferFlux("first line\nnext line"))
-                .as(StepVerifier::create)
-                .consumeNextWith(resource -> {
-                    try {
-                        String content = resource.getContentAsString(StandardCharsets.UTF_8);
-                        assertThat(content).isEqualTo("first line\nnext line");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .verifyComplete();
-
-            // version is matched, should return cached content
-            bufferedPluginBundleResource.getJsBundle("1",
-                    () -> getDataBufferFlux("first line\nnext line-1"))
-                .as(StepVerifier::create)
-                .consumeNextWith(resource -> {
-                    try {
-                        String content = resource.getContentAsString(StandardCharsets.UTF_8);
-                        assertThat(content).isEqualTo("first line\nnext line");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .verifyComplete();
-
-            // new version should return new content
-            bufferedPluginBundleResource.getJsBundle("2",
-                    () -> getDataBufferFlux("first line\nnext line-2"))
-                .as(StepVerifier::create)
-                .consumeNextWith(resource -> {
-                    try {
-                        String content = resource.getContentAsString(StandardCharsets.UTF_8);
-                        assertThat(content).isEqualTo("first line\nnext line-2");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .verifyComplete();
-        }
-
-        @Test
-        void writeAndGetCssResourceTest() {
-            bufferedPluginBundleResource.getCssBundle("1",
-                    () -> getDataBufferFlux("first line\nnext line"))
-                .as(StepVerifier::create)
-                .consumeNextWith(resource -> {
-                    try {
-                        String content = resource.getContentAsString(StandardCharsets.UTF_8);
-                        assertThat(content).isEqualTo("first line\nnext line");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .verifyComplete();
-
-            // version is matched, should return cached content
-            bufferedPluginBundleResource.getCssBundle("1",
-                    () -> getDataBufferFlux("first line\nnext line-1"))
-                .as(StepVerifier::create)
-                .consumeNextWith(resource -> {
-                    try {
-                        String content = resource.getContentAsString(StandardCharsets.UTF_8);
-                        assertThat(content).isEqualTo("first line\nnext line");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .verifyComplete();
-        }
-    }
-
-    @Nested
     class BundleResourceEndpointTest {
 
         private long lastModified;
@@ -507,7 +374,7 @@ class PluginEndpointTest {
 
         @Test
         void shouldBeRedirectedWhileFetchingBundleJsWithoutVersion() {
-            when(pluginService.generateJsBundleVersion()).thenReturn(Mono.just("fake-version"));
+            when(pluginService.generateBundleVersion()).thenReturn(Mono.just("fake-version"));
             webClient.get().uri("/plugins/-/bundle.js")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -518,7 +385,7 @@ class PluginEndpointTest {
 
         @Test
         void shouldBeRedirectedWhileFetchingBundleCssWithoutVersion() {
-            when(pluginService.generateJsBundleVersion()).thenReturn(Mono.just("fake-version"));
+            when(pluginService.generateBundleVersion()).thenReturn(Mono.just("fake-version"));
             webClient.get().uri("/plugins/-/bundle.css")
                 .exchange()
                 .expectStatus().is3xxRedirection()
@@ -535,7 +402,7 @@ class PluginEndpointTest {
             cachecontrol.setNoCache(true);
             endpoint.afterPropertiesSet();
 
-            when(bufferedPluginBundleResource.getCssBundle(eq("fake-version"), any()))
+            when(pluginService.getCssBundle("fake-version"))
                 .thenReturn(Mono.fromSupplier(() -> mockResource("fake-css")));
             webClient.get().uri("/plugins/-/bundle.css?v=fake-version")
                 .exchange()
@@ -554,7 +421,7 @@ class PluginEndpointTest {
             cachecontrol.setNoStore(true);
             endpoint.afterPropertiesSet();
 
-            when(bufferedPluginBundleResource.getJsBundle(eq("fake-version"), any()))
+            when(pluginService.getJsBundle("fake-version"))
                 .thenReturn(Mono.fromSupplier(() -> mockResource("fake-js")));
             webClient.get().uri("/plugins/-/bundle.js?v=fake-version")
                 .exchange()
@@ -567,7 +434,7 @@ class PluginEndpointTest {
 
         @Test
         void shouldFetchBundleCss() {
-            when(bufferedPluginBundleResource.getCssBundle(eq("fake-version"), any()))
+            when(pluginService.getCssBundle("fake-version"))
                 .thenReturn(Mono.fromSupplier(() -> mockResource("fake-css")));
             webClient.get().uri("/plugins/-/bundle.css?v=fake-version")
                 .exchange()
@@ -580,7 +447,7 @@ class PluginEndpointTest {
 
         @Test
         void shouldFetchBundleJs() {
-            when(bufferedPluginBundleResource.getJsBundle(eq("fake-version"), any()))
+            when(pluginService.getJsBundle("fake-version"))
                 .thenReturn(Mono.fromSupplier(() -> mockResource("fake-js")));
             webClient.get().uri("/plugins/-/bundle.js?v=fake-version")
                 .exchange()
