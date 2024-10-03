@@ -27,6 +27,9 @@ spring:
       cache:
         cachecontrol:
           max-age: 365d
+  thymeleaf:
+    reactive:
+      maxChunkSize: 8KB
   cache:
     type: caffeine
     caffeine:
@@ -93,7 +96,11 @@ resilience4j.ratelimiter:
       limitForPeriod: 3
       limitRefreshPeriod: 1h
       timeoutDuration: 0s
-    send-reset-password-email:
-      limitForPeriod: 2
+    send-password-reset-email:
+      limitForPeriod: 10
+      limitRefreshPeriod: 1m
+      timeoutDuration: 0s
+    password-reset-verification:
+      limitForPeriod: 10
       limitRefreshPeriod: 1m
       timeoutDuration: 0s
