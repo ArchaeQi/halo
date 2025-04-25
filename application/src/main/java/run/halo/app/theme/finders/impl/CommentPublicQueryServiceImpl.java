@@ -1,12 +1,14 @@
 package run.halo.app.theme.finders.impl;
 
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
 import static run.halo.app.extension.index.query.QueryFactory.and;
 import static run.halo.app.extension.index.query.QueryFactory.equal;
 import static run.halo.app.extension.index.query.QueryFactory.isNull;
 import static run.halo.app.extension.index.query.QueryFactory.or;
 
+import com.google.common.hash.Hashing;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Optional;
@@ -20,7 +22,6 @@ import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
-import org.springframework.util.DigestUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.content.comment.OwnerInfo;
@@ -86,7 +87,7 @@ public class CommentPublicQueryServiceImpl implements CommentPublicQueryService 
                 return client.listBy(Comment.class, listOptions, pageRequest)
                     .flatMap(listResult -> Flux.fromStream(listResult.get())
                         .map(this::toCommentVo)
-                        .concatMap(Function.identity())
+                        .flatMapSequential(Function.identity())
                         .collectList()
                         .map(commentVos -> new ListResult<>(listResult.getPage(),
                             listResult.getSize(),
@@ -102,7 +103,7 @@ public class CommentPublicQueryServiceImpl implements CommentPublicQueryService 
     public Mono<ListResult<CommentWithReplyVo>> convertToWithReplyVo(ListResult<CommentVo> comments,
         int replySize) {
         return Flux.fromIterable(comments.getItems())
-            .concatMap(commentVo -> {
+            .flatMapSequential(commentVo -> {
                 var commentName = commentVo.getMetadata().getName();
                 return listReply(commentName, 1, replySize)
                     .map(replyList -> CommentWithReplyVo.from(commentVo)
@@ -135,7 +136,7 @@ public class CommentPublicQueryServiceImpl implements CommentPublicQueryService 
                     .orElse(PageRequestImpl.ofSize(0));
                 return client.listBy(Reply.class, listOptions, pageRequest)
                     .flatMap(list -> Flux.fromStream(list.get().map(this::toReplyVo))
-                        .concatMap(Function.identity())
+                        .flatMapSequential(Function.identity())
                         .collectList()
                         .map(replyVos -> new ListResult<>(list.getPage(), list.getSize(),
                             list.getTotal(),
@@ -172,7 +173,9 @@ public class CommentPublicQueryServiceImpl implements CommentPublicQueryService 
         specOwner.setName("");
         var email = owner.getEmail();
         if (StringUtils.isNotBlank(email)) {
-            var emailHash = DigestUtils.md5DigestAsHex(email.getBytes());
+            var emailHash = Hashing.sha256()
+                .hashString(email.toLowerCase(), UTF_8)
+                .toString();
             if (specOwner.getAnnotations() == null) {
                 specOwner.setAnnotations(new HashMap<>(2));
             }
@@ -224,7 +227,9 @@ public class CommentPublicQueryServiceImpl implements CommentPublicQueryService 
         specOwner.setName("");
         var email = owner.getEmail();
         if (StringUtils.isNotBlank(email)) {
-            var emailHash = DigestUtils.md5DigestAsHex(email.getBytes());
+            var emailHash = Hashing.sha256()
+                .hashString(email.toLowerCase(), UTF_8)
+                .toString();
             if (specOwner.getAnnotations() == null) {
                 specOwner.setAnnotations(new HashMap<>(2));
             }

@@ -26,10 +26,13 @@ core:
       logout:
         tooltip: 退出登录
         title: 退出登录
+        description: 点击确定将跳转至退出登录页面，请确保正在编辑的内容已保存。
       profile:
         tooltip: 个人中心
       visit_homepage:
         title: 访问首页
+    profile:
+      aggregate_role: 聚合角色
   uc_sidebar:
     menu:
       items:
@@ -39,6 +42,8 @@ core:
     operations:
       console:
         tooltip: 管理控制台
+    profile:
+      aggregate_role: 聚合角色
   dashboard:
     title: 仪表板
     actions:
@@ -256,6 +261,9 @@ core:
       cancel_publish:
         title: 取消发布
         description: 确定要取消发布吗？
+      delete:
+        title: 删除文章
+        description: 该操作会将文章放入回收站，后续由网站管理员进行管理。
   post_editor:
     title: 文章编辑
     untitled: 未命名文章
@@ -568,6 +576,8 @@ core:
       fields:
         display_name:
           label: 名称
+      toast:
+        group_name_exists: 分组名称已存在
     group_list:
       internal_groups:
         all: 全部
@@ -603,6 +613,8 @@ core:
       fields:
         display_name:
           label: 名称
+      toast:
+        policy_name_exists: 存储策略名称已存在
     upload_modal:
       title: 上传附件
       filters:
@@ -614,6 +626,50 @@ core:
             title: 没有存储策略
             description: 在上传之前，需要新建一个存储策略
           not_select: 请先选择存储策略
+    select_modal:
+      title: 选择附件
+      providers:
+        default:
+          label: 附件库
+      operations:
+        select:
+          result: （已选择 {count} 项）
+  uc_attachment:
+    empty:
+      title: 当前没有附件
+      message: 当前没有附件，你可以尝试刷新或者上传附件
+      actions:
+        upload: 上传附件
+    filters:
+      sort:
+        items:
+          create_time_desc: 较近上传
+          create_time_asc: 较晚上传
+          size_desc: 文件大小降序
+          size_asc: 文件大小升序
+          display_name_asc: 文件名升序
+          display_name_desc: 文件名降序
+      view_type:
+        items:
+          grid: 网格模式
+          list: 列表模式
+    detail_modal:
+      title: 附件：{display_name}
+      fields:
+        preview: 预览
+        display_name: 文件名称
+        media_type: 文件类型
+        size: 文件大小
+        owner: 上传者
+        creation_time: 上传时间
+        permalink: 链接
+      preview:
+        click_to_exit: 点击退出预览
+        video_not_support: 当前浏览器不支持该视频播放
+        audio_not_support: 当前浏览器不支持该音频播放
+        not_support: 此文件不支持预览
+    upload_modal:
+      title: 上传附件
     select_modal:
       title: 选择附件
       providers:
@@ -895,6 +951,12 @@ core:
         title: 修改密码
       grant_permission:
         title: 分配角色
+      enable:
+        title: 取消禁用
+        description: 确定取消禁用该用户吗？
+      disable:
+        title: 禁用
+        description: 确定禁用该用户吗？禁用之后该用户将无法登录系统
     filters:
       role:
         label: 角色
@@ -937,6 +999,9 @@ core:
         role:
           label: 角色
           placeholder: 请选择角色
+      roles_preview:
+        all: 当前所选角色包含所有权限
+        includes: 当前所选角色包含的权限：
     detail:
       title: 用户详情
       tabs:
@@ -946,6 +1011,8 @@ core:
           title: 修改资料
         change_password:
           title: 修改密码
+        grant_permission:
+          title: 分配角色
         profile:
           title: 个人中心
       fields:
@@ -960,6 +1027,8 @@ core:
           tooltip: 已验证
         email_not_verified:
           tooltip: 未验证
+    fields:
+      disabled: 已禁用
   role:
     title: 角色
     common:
@@ -1000,7 +1069,6 @@ core:
         permissions: 权限
       fields:
         display_name: 名称
-        redirect_on_login: 登录之后默认跳转位置
         disallow_access_console:
           label: 禁止访问 Console
           help: 勾选之后，该角色将无法访问 Console
@@ -1016,6 +1084,15 @@ core:
         title: 停用认证方式
       disable_privileged:
         tooltip: 系统保留的认证方式，无法禁用
+    fields:
+      display_name:
+        local: 账号密码登录
+      description:
+        local: Halo 内置的默认登录方式
+    list:
+      types:
+        form: 基础认证方式
+        oauth2: 三方认证方式
     detail:
       title: 身份认证详情
       fields:
@@ -1101,6 +1178,7 @@ core:
                 manual:
                   label: 如果无法扫描二维码，点击查看代替步骤
                   help: 使用以下代码手动配置验证器应用：
+              tips: 请妥善保管您的两步验证设备，如果设备丢失或损坏，你将无法登录系统。建议你在多个设备上安装验证器应用，或保存好密钥的备份，以防主要设备无法使用。
     pat:
       operations:
         delete:
@@ -1213,6 +1291,10 @@ core:
         revoke:
           title: 撤销设备
           description: 确定要撤销该设备吗？撤销之后，此设备会退出登录
+        revoke_others:
+          title: 撤销其他所有设备
+          description: 确定要撤销其他所有设备吗？撤销之后，其他设备会退出登录
+          toast_success: 已撤销其他设备的登录状态
   uc_notification:
     title: 消息
     tabs:
@@ -1228,6 +1310,12 @@ core:
       delete:
         title: 删除消息
         description: 确定要删除该消息吗？
+      delete_all:
+        title: 删除当前所有通知
+        description: 确定要删除当前所有通知吗？删除后将无法恢复。
+      mark_all_as_read:
+        title: 将当前所有通知标记为已读
+        description: 将当前所有通知标记为已读，是否继续？
   setting:
     title: 设置
   overview:
@@ -1302,10 +1390,10 @@ core:
     restore:
       tips:
         first: 1. 恢复过程可能会持续较长时间，期间请勿刷新页面。
-        second: 2. 在恢复的过程中，虽然已有的数据不会被清理掉，但如果有冲突的数据将被覆盖。
+        second: 2. 在执行恢复之前，会清空现有的所有数据，请确保当前没有需要保留的数据。
         third: 3. 恢复完成之后需要重启 Halo 才能够正常加载系统资源。
         complete: 恢复完成，等待重启...
-      start: 开始恢复
+      start: 我已阅读上方提示，开始恢复
       tabs:
         local:
           label: 上传
@@ -1315,6 +1403,9 @@ core:
             url: 下载地址
         backup:
           label: 从备份文件恢复
+          empty:
+            title: 没有备份文件
+            message: 当前没有扫描到备份文件，你可以手动将备份文件上传到 Halo 工作目录的 backups 目录。
   exception:
     not_found:
       message: 没有找到该页面
@@ -1322,25 +1413,6 @@ core:
       message: 没有权限访问此页面
     actions:
       home: 返回首页
-  setup:
-    title: 系统初始化
-    operations:
-      submit:
-        button: 初始化
-        toast_success: 初始化成功
-      setup_initial_data:
-        loading: 正在初始化数据，请稍后...
-    fields:
-      site_title:
-        label: 站点名称
-      email:
-        label: 邮箱
-      username:
-        label: 用户名
-      password:
-        label: 密码
-      confirm_password:
-        label: 确认密码
   rbac:
     Attachments Management: 附件
     Attachment Manage: 附件管理
@@ -1415,6 +1487,10 @@ core:
     Post Author: 允许管理自己的文章
     Post Attachment Manager: 允许在文章中上传图片
     Post Publisher: 允许发布自己的文章
+    UC Attachment Manage: 允许管理自己的附件
+    role-template-uc-attachment-manager: 允许管理自己的附件
+    Recycle My Post: 允许删除自己的文章
+    role-template-recycle-my-post: 允许删除自己的文章
   components:
     submit_button:
       computed_text: "{text}（{shortcut}）"
@@ -1527,6 +1603,7 @@ core:
       creation_label: 创建 {text} 标签
     validation:
       trim: 不能以空格开头或结尾
+      password: "密码只能使用大小写字母 (A-Z, a-z)、数字 (0-9)，以及以下特殊字符: !{'@'}#$%^&*"
     verification_form:
       no_action_defined: 未定义{label}接口
       verify_success: "{label}成功"
@@ -1664,6 +1741,7 @@ core:
       none: 无
       tip: 提示
       warning: 警告
+      system_protection: 系统保留
     tooltips:
       unpublished_content_tip: 当前有内容已保存，但还未发布。
       publishing: 发布中

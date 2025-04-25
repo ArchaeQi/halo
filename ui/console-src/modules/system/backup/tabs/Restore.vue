@@ -7,6 +7,7 @@ import {
   Toast,
   VAlert,
   VButton,
+  VEmpty,
   VEntity,
   VEntityField,
   VLoading,
@@ -61,7 +62,12 @@ const { isLoading: downloading, mutate: handleRemoteDownload } = useMutation({
   },
 });
 
-const { data: backupFiles } = useQuery({
+const {
+  data: backupFiles,
+  refetch: refetchBackupFiles,
+  isLoading: isLoadingBackupFiles,
+  isFetching: isFetchingBackupFiles,
+} = useQuery({
   queryKey: ["backup-files", activeTabId],
   queryFn: async () => {
     const { data } = await consoleApiClient.migration.getBackupFiles();
@@ -114,7 +120,9 @@ useQuery({
           <ul>
             <li>{{ $t("core.backup.restore.tips.first") }}</li>
             <li>
-              {{ $t("core.backup.restore.tips.second") }}
+              <strong>
+                {{ $t("core.backup.restore.tips.second") }}
+              </strong>
             </li>
             <li>
               {{ $t("core.backup.restore.tips.third") }}
@@ -177,7 +185,9 @@ useQuery({
           id="backups"
           :label="$t('core.backup.restore.tabs.backup.label')"
         >
+          <VLoading v-if="isLoadingBackupFiles" />
           <ul
+            v-else-if="backupFiles?.length"
             class="box-border h-full w-full divide-y divide-gray-100 overflow-hidden rounded-base border"
             role="list"
           >
@@ -214,6 +224,21 @@ useQuery({
               </VEntity>
             </li>
           </ul>
+
+          <VEmpty
+            v-else
+            :title="$t('core.backup.restore.tabs.backup.empty.title')"
+            :message="$t('core.backup.restore.tabs.backup.empty.message')"
+          >
+            <template #actions>
+              <VButton
+                :loading="isFetchingBackupFiles"
+                @click="refetchBackupFiles"
+              >
+                {{ $t("core.common.buttons.refresh") }}
+              </VButton>
+            </template>
+          </VEmpty>
         </VTabItem>
       </VTabs>
     </div>

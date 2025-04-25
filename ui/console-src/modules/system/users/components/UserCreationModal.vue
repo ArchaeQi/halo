@@ -9,6 +9,7 @@ import SubmitButton from "@/components/button/SubmitButton.vue";
 import { Toast, VButton, VModal, VSpace } from "@halo-dev/components";
 
 // hooks
+import { PASSWORD_REGEX } from "@/constants/regex";
 import { setFocus } from "@/formkit/utils/focus";
 import { useQueryClient } from "@tanstack/vue-query";
 import { useI18n } from "vue-i18n";
@@ -30,7 +31,6 @@ const formState = ref<CreateUserRequest>({
   password: "",
   roles: [],
 });
-const selectedRole = ref("");
 const isSubmitting = ref(false);
 
 onMounted(() => {
@@ -40,10 +40,6 @@ onMounted(() => {
 const handleCreateUser = async () => {
   try {
     isSubmitting.value = true;
-
-    if (selectedRole.value) {
-      formState.value.roles = [selectedRole.value];
-    }
 
     await consoleApiClient.user.createUser({
       createUserRequest: formState.value,
@@ -83,7 +79,7 @@ const handleCreateUser = async () => {
         name="name"
         :validation="[
           ['required'],
-          ['length:0,63'],
+          ['length', 0, 63],
           [
             'matches',
             /^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/,
@@ -112,15 +108,21 @@ const handleCreateUser = async () => {
         :label="$t('core.user.change_password_modal.fields.new_password.label')"
         type="password"
         name="password"
-        validation="required:trim|length:5,100|matches:/^\S.*\S$/"
+        :validation="[
+          ['required'],
+          ['length', 5, 257],
+          ['matches', PASSWORD_REGEX],
+        ]"
         :validation-messages="{
-          matches: $t('core.formkit.validation.trim'),
+          matches: $t('core.formkit.validation.password'),
         }"
       ></FormKit>
+      <!-- @vue-ignore -->
       <FormKit
-        v-model="selectedRole"
+        v-model="formState.roles"
         :label="$t('core.user.grant_permission_modal.fields.role.label')"
         type="roleSelect"
+        multiple
         validation="required"
       ></FormKit>
       <FormKit

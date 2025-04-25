@@ -4,7 +4,6 @@ plugins {
     id 'org.springframework.boot' apply false
     id 'java-platform'
     id 'halo.publish'
-    id 'signing'
 }
 
 group = 'run.halo.tools.platform'
@@ -13,17 +12,18 @@ description = 'Platform of application.'
 ext {
     commonsLang3 = "3.12.0"
     base62 = "0.1.3"
-    pf4j = '3.12.0'
+    pf4j = '3.13.0'
     javaDiffUtils = "4.12"
-    guava = "32.0.1-jre"
-    jsoup = '1.15.3'
+    guava = "33.3.1-jre"
+    jsoup = '1.18.1'
     jsonPatch = "1.13"
-    springDocOpenAPI = "2.6.0"
-    lucene = "9.11.1"
+    springDocOpenAPI = "2.8.3"
+    lucene = "9.12.0"
     resilience4jVersion = "2.2.0"
     twoFactorAuth = "1.3"
     tika = "2.9.2"
     imgscalr = '4.2'
+    exifExtractor = '2.19.0'
 }
 
 javaPlatform {
@@ -58,6 +58,17 @@ dependencies {
         api "com.j256.two-factor-auth:two-factor-auth:$twoFactorAuth"
         api "org.apache.tika:tika-core:$tika"
         api "org.imgscalr:imgscalr-lib:$imgscalr"
+        api "com.drewnoakes:metadata-extractor:$exifExtractor"
     }
 
+}
+
+publishing {
+    publications.named('mavenJava', MavenPublication) {
+        from components.javaPlatform
+        pom {
+            name = 'Application platform.'
+            description = "$project.description"
+        }
+    }
 }

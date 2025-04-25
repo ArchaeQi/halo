@@ -2,18 +2,20 @@
 import { RoutesMenu } from "@/components/menu/RoutesMenu";
 import { useRouteMenuGenerator } from "@/composables/use-route-menu-generator";
 import { rbacAnnotations } from "@/constants/annotations";
+import { SUPER_ROLE_NAME } from "@/constants/constants";
 import { useUserStore } from "@/stores/user";
 import { coreMenuGroups } from "@console/router/constant";
 import {
   Dialog,
+  IconArrowDownLine,
   IconLogoutCircleRLine,
   IconMore,
   IconSettings3Line,
-  IconUserSettings,
+  IconShieldUser,
   VAvatar,
+  VDropdown,
   VTag,
 } from "@halo-dev/components";
-import axios from "axios";
 import {
   useOverlayScrollbars,
   type UseOverlayScrollbarsParams,
@@ -38,24 +40,11 @@ const { currentRoles, currentUser } = storeToRefs(userStore);
 const handleLogout = () => {
   Dialog.warning({
     title: t("core.sidebar.operations.logout.title"),
+    description: t("core.sidebar.operations.logout.description"),
     confirmText: t("core.common.buttons.confirm"),
     cancelText: t("core.common.buttons.cancel"),
     onConfirm: async () => {
-      try {
-        await axios.post(`/logout`, undefined, {
-          withCredentials: true,
-        });
-
-        await userStore.fetchCurrentUser();
-
-        // Clear csrf token
-        document.cookie =
-          "XSRF-TOKEN=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-
-        window.location.href = "/login";
-      } catch (error) {
-        console.error("Failed to logout", error);
-      }
+      window.location.href = "/logout";
     },
   });
 };
@@ -100,6 +89,12 @@ onMounted(() => {
 });
 
 const disallowAccessConsole = computed(() => {
+  if (
+    currentRoles?.value?.some((role) => role.metadata.name === SUPER_ROLE_NAME)
+  ) {
+    return false;
+  }
+
   const hasDisallowAccessConsoleRole = currentRoles?.value?.some((role) => {
     return (
       role.metadata.annotations?.[rbacAnnotations.DISALLOW_ACCESS_CONSOLE] ===
@@ -135,7 +130,7 @@ const disallowAccessConsole = computed(() => {
             <VAvatar
               :src="currentUser?.spec.avatar"
               :alt="currentUser?.spec.displayName"
-              size="md"
+              size="sm"
               circle
             ></VAvatar>
           </div>
@@ -143,10 +138,10 @@ const disallowAccessConsole = computed(() => {
             <div class="flex text-sm font-medium">
               {{ currentUser?.spec.displayName }}
             </div>
-            <div v-if="currentRoles?.[0]" class="flex">
-              <VTag>
+            <div v-if="currentRoles?.length" class="flex mt-1">
+              <VTag v-if="currentRoles.length === 1">
                 <template #leftIcon>
-                  <IconUserSettings />
+                  <IconShieldUser />
                 </template>
                 {{
                   currentRoles[0].metadata.annotations?.[
@@ -154,6 +149,41 @@ const disallowAccessConsole = computed(() => {
                   ] || currentRoles[0].metadata.name
                 }}
               </VTag>
+              <VDropdown v-else>
+                <div class="flex gap-1">
+                  <VTag>
+                    <template #leftIcon>
+                      <IconShieldUser />
+                    </template>
+                    {{ $t("core.uc_sidebar.profile.aggregate_role") }}
+                  </VTag>
+                  <IconArrowDownLine />
+                </div>
+                <template #popper>
+                  <div class="p-1">
+                    <h2
+                      class="text-gray-600 text-sm font-semibold border-b border-gray-100 pb-1.5"
+                    >
+                      {{ $t("core.uc_sidebar.profile.aggregate_role") }}
+                    </h2>
+                    <div class="flex gap-2 flex-wrap mt-2">
+                      <VTag
+                        v-for="role in currentRoles"
+                        :key="role.metadata.name"
+                      >
+                        <template #leftIcon>
+                          <IconShieldUser />
+                        </template>
+                        {{
+                          role.metadata.annotations?.[
+                            rbacAnnotations.DISPLAY_NAME
+                          ] || role.metadata.name
+                        }}
+                      </VTag>
+                    </div>
+                  </div>
+                </template>
+              </VDropdown>
             </div>
           </div>
           <div class="flex items-center gap-1">
@@ -290,6 +320,7 @@ const disallowAccessConsole = computed(() => {
 
   .profile-placeholder {
     height: 70px;
+    flex: none;
 
     .current-profile {
       height: 70px;

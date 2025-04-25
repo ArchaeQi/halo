@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Halo",
-    "version": "2.20.0-SNAPSHOT"
+    "version": "2.20.11-SNAPSHOT"
   },
   "servers": [
     {
@@ -515,30 +515,6 @@
         },
         "tags": [
           "NotifierV1alpha1Console"
-        ]
-      }
-    },
-    "/apis/api.console.halo.run/v1alpha1/plugin-presets": {
-      "get": {
-        "description": "List all plugin presets in the system.",
-        "operationId": "ListPluginPresets",
-        "responses": {
-          "default": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plugin"
-                  }
-                }
-              }
-            },
-            "description": "default response"
-          }
-        },
-        "tags": [
-          "PluginV1alpha1Console"
         ]
       }
     },
@@ -2176,38 +2152,6 @@
         ]
       }
     },
-    "/apis/api.console.halo.run/v1alpha1/system/initialize": {
-      "post": {
-        "description": "Initialize system",
-        "operationId": "initialize",
-        "requestBody": {
-          "content": {
-            "*/*": {
-              "schema": {
-                "$ref": "#/components/schemas/SystemInitializationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "System initialization successfully.",
-            "headers": {
-              "Location": {
-                "description": "Redirect URL.",
-                "schema": {
-                  "type": "string"
-                },
-                "style": "simple"
-              }
-            }
-          }
-        },
-        "tags": [
-          "SystemV1alpha1Console"
-        ]
-      }
-    },
     "/apis/api.console.halo.run/v1alpha1/tags": {
       "get": {
         "description": "List Post Tags.",
@@ -3430,6 +3374,70 @@
           "NotifierV1alpha1Console"
         ]
       }
+    },
+    "/apis/console.api.security.halo.run/v1alpha1/users/{username}/disable": {
+      "post": {
+        "description": "Disable user by username",
+        "operationId": "DisableUser",
+        "parameters": [
+          {
+            "description": "Username",
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "The user has been disabled."
+          }
+        },
+        "tags": [
+          "UserV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/console.api.security.halo.run/v1alpha1/users/{username}/enable": {
+      "post": {
+        "description": "Enable user by username",
+        "operationId": "EnableUser",
+        "parameters": [
+          {
+            "description": "Username",
+            "in": "path",
+            "name": "username",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "description": "The user has been enabled."
+          }
+        },
+        "tags": [
+          "UserV1alpha1Console"
+        ]
+      }
     }
   },
   "components": {
@@ -3624,6 +3632,7 @@
       },
       "AuthProviderSpec": {
         "required": [
+          "authType",
           "authenticationUrl",
           "displayName"
         ],
@@ -3661,10 +3670,6 @@
           },
           "method": {
             "type": "string"
-          },
-          "priority": {
-            "type": "integer",
-            "format": "int32"
           },
           "rememberMeSupport": {
             "type": "boolean"
@@ -3814,7 +3819,7 @@
             "description": "Old password."
           },
           "password": {
-            "minLength": 6,
+            "minLength": 5,
             "type": "string",
             "description": "New password."
           }
@@ -3827,7 +3832,7 @@
         "type": "object",
         "properties": {
           "password": {
-            "minLength": 6,
+            "minLength": 5,
             "type": "string",
             "description": "New password."
           }
@@ -4491,6 +4496,13 @@
         ],
         "type": "object",
         "properties": {
+          "authType": {
+            "type": "string",
+            "enum": [
+              "FORM",
+              "OAUTH2"
+            ]
+          },
           "authenticationUrl": {
             "type": "string"
           },
@@ -4517,6 +4529,10 @@
           },
           "name": {
             "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
           },
           "privileged": {
             "type": "boolean"
@@ -5486,9 +5502,6 @@
         }
       },
       "PostStatus": {
-        "required": [
-          "phase"
-        ],
         "type": "object",
         "properties": {
           "commentsCount": {
@@ -6018,9 +6031,6 @@
         }
       },
       "SinglePageStatus": {
-        "required": [
-          "phase"
-        ],
         "type": "object",
         "properties": {
           "commentsCount": {
@@ -6087,29 +6097,6 @@
           "visit": {
             "type": "integer",
             "format": "int32"
-          }
-        }
-      },
-      "SystemInitializationRequest": {
-        "required": [
-          "password",
-          "username"
-        ],
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "password": {
-            "minLength": 3,
-            "type": "string"
-          },
-          "siteTitle": {
-            "type": "string"
-          },
-          "username": {
-            "minLength": 1,
-            "type": "string"
           }
         }
       },

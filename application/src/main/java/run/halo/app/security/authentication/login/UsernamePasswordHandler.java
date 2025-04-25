@@ -10,6 +10,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.CredentialsContainer;
@@ -46,7 +47,7 @@ public class UsernamePasswordHandler implements ServerAuthenticationSuccessHandl
     private RememberMeRequestCache rememberMeRequestCache = new WebSessionRememberMeRequestCache();
 
     private final ServerAuthenticationSuccessHandler defaultSuccessHandler =
-        new RedirectServerAuthenticationSuccessHandler("/console/");
+        new RedirectServerAuthenticationSuccessHandler("/uc");
 
     public UsernamePasswordHandler(ServerResponse.Context context, MessageSource messageSource,
         LoginHandlerEnhancer loginHandlerEnhancer) {
@@ -65,12 +66,15 @@ public class UsernamePasswordHandler implements ServerAuthenticationSuccessHandl
                 .filter(ServerWebExchangeMatcher.MatchResult::isMatch)
                 .switchIfEmpty(Mono.defer(
                     () -> {
-                        URI location = URI.create("/login?error");
+                        var location = URI.create("/login?error&method=local");
+                        if (exception instanceof DisabledException) {
+                            location = URI.create("/login?error=account-disabled&method=local");
+                        }
                         if (exception instanceof BadCredentialsException) {
-                            location = URI.create("/login?error=invalid-credential");
+                            location = URI.create("/login?error=invalid-credential&method=local");
                         }
                         if (exception instanceof TooManyRequestsException) {
-                            location = URI.create("/login?error=rate-limit-exceeded");
+                            location = URI.create("/login?error=rate-limit-exceeded&method=local");
                         }
                         return redirectStrategy.sendRedirect(exchange, location);
                     }).then(Mono.empty())

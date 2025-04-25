@@ -24,6 +24,7 @@ import {
 import { useQueryClient } from "@tanstack/vue-query";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { usePostPublishMutate } from "../composables/use-post-publish-mutate";
 
 const { t } = useI18n();
 const queryClient = useQueryClient();
@@ -67,13 +68,17 @@ const isPublishing = computed(() => {
   );
 });
 
-async function handlePublish() {
-  await ucApiClient.content.post.publishMyPost({
-    name: props.post.post.metadata.name,
-  });
+const { mutateAsync: postPublishMutate } = usePostPublishMutate();
 
-  Toast.success(t("core.common.toast.publish_success"));
-  queryClient.invalidateQueries({ queryKey: ["my-posts"] });
+async function handlePublish() {
+  try {
+    await postPublishMutate({ name: props.post.post.metadata.name });
+
+    Toast.success(t("core.common.toast.publish_success"));
+    queryClient.invalidateQueries({ queryKey: ["my-posts"] });
+  } catch (_) {
+    Toast.error(t("core.common.toast.publish_failed_and_retry"));
+  }
 }
 
 function handleUnpublish() {
@@ -88,6 +93,25 @@ function handleUnpublish() {
       });
 
       Toast.success(t("core.common.toast.cancel_publish_success"));
+      queryClient.invalidateQueries({ queryKey: ["my-posts"] });
+    },
+  });
+}
+
+function handleDelete() {
+  Dialog.warning({
+    title: t("core.uc_post.operations.delete.title"),
+    description: t("core.uc_post.operations.delete.description"),
+    confirmType: "danger",
+    confirmText: t("core.common.buttons.confirm"),
+    cancelText: t("core.common.buttons.cancel"),
+    async onConfirm() {
+      await ucApiClient.content.post.recycleMyPost({
+        name: props.post.post.metadata.name,
+      });
+
+      Toast.success(t("core.common.toast.delete_success"));
+
       queryClient.invalidateQueries({ queryKey: ["my-posts"] });
     },
   });
@@ -246,9 +270,14 @@ function handleUnpublish() {
         {{ $t("core.common.buttons.edit") }}
       </VDropdownItem>
       <HasPermission v-if="!isPublished" :permissions="['uc:posts:publish']">
-        <VDropdownDivider />
         <VDropdownItem type="danger" @click="handleUnpublish">
           {{ $t("core.common.buttons.cancel_publish") }}
+        </VDropdownItem>
+      </HasPermission>
+      <HasPermission :permissions="['uc:posts:recycle']">
+        <VDropdownDivider />
+        <VDropdownItem type="danger" @click="handleDelete">
+          {{ $t("core.common.buttons.delete") }}
         </VDropdownItem>
       </HasPermission>
     </template>

@@ -26,10 +26,15 @@ core:
       logout:
         tooltip: Logout
         title: Logout
+        description: >-
+          Clicking Confirm will redirect to the logout page. Please ensure that
+          the content you are editing is saved.
       profile:
         tooltip: Profile
       visit_homepage:
         title: Visit homepage
+    profile:
+      aggregate_role: Aggregate Role
   uc_sidebar:
     menu:
       items:
@@ -39,6 +44,8 @@ core:
     operations:
       console:
         tooltip: Console
+    profile:
+      aggregate_role: Aggregate Role
   dashboard:
     title: Dashboard
     actions:
@@ -597,6 +604,8 @@ core:
       fields:
         display_name:
           label: Display name
+      toast:
+        group_name_exists: Group name already exists
     group_list:
       internal_groups:
         all: All
@@ -642,6 +651,8 @@ core:
       fields:
         display_name:
           label: Display name
+      toast:
+        policy_name_exists: Storage policy name already exists
     upload_modal:
       title: Upload attachment
       filters:
@@ -653,6 +664,52 @@ core:
             title: No storage policy
             description: Before uploading, a new storage policy needs to be created.
           not_select: Please select a storage policy first.
+    select_modal:
+      title: Select attachment
+      providers:
+        default:
+          label: Attachments
+      operations:
+        select:
+          result: ({count} items selected)
+  uc_attachment:
+    empty:
+      title: There are no attachments.
+      message: >-
+        There are no attachments, you can try refreshing or uploading
+        attachments.
+      actions:
+        upload: Upload Attachment
+    filters:
+      sort:
+        items:
+          create_time_desc: Latest uploaded
+          create_time_asc: Earliest uploaded
+          size_desc: Descending order by file size
+          size_asc: Ascending order by file size
+          display_name_asc: Ascending order by display name
+          display_name_desc: Descending order by display name
+      view_type:
+        items:
+          grid: Grid Mode
+          list: List Mode
+    detail_modal:
+      title: "Attachment: {display_name}"
+      fields:
+        preview: Preview
+        display_name: Display name
+        media_type: Media type
+        size: Size
+        owner: Owner
+        creation_time: Creation time
+        permalink: Permalink
+      preview:
+        click_to_exit: Click to exit preview
+        video_not_support: The current browser does not support video playback.
+        audio_not_support: The current browser does not support audio playback.
+        not_support: This file does not support preview.
+    upload_modal:
+      title: Upload attachment
     select_modal:
       title: Select attachment
       providers:
@@ -961,6 +1018,14 @@ core:
         title: Change password
       grant_permission:
         title: Grant permission
+      enable:
+        title: Enable
+        description: Are you sure you want to enable this user?
+      disable:
+        title: Disable
+        description: >-
+          Are you sure you want to disable this user? This user will not be able
+          to log in after being disabled
     filters:
       role:
         label: Role
@@ -1006,6 +1071,9 @@ core:
         role:
           label: Role
           placeholder: Please select a role
+      roles_preview:
+        all: The currently selected role contains all permissions
+        includes: "The currently selected role contains the following permissions:"
     detail:
       title: User detail
       tabs:
@@ -1015,6 +1083,8 @@ core:
           title: Update profile
         change_password:
           title: Change password
+        grant_permission:
+          title: Grant permission
         profile:
           title: Profile
       fields:
@@ -1029,6 +1099,8 @@ core:
           tooltip: Verified
         email_not_verified:
           tooltip: Not verified
+    fields:
+      disabled: Disabled
   role:
     title: Roles
     common:
@@ -1073,7 +1145,6 @@ core:
         permissions: Permissions
       fields:
         display_name: Display name
-        redirect_on_login: Default redirect location after logging in
         disallow_access_console:
           label: Disable access to Console
           help: Once checked, this role will not be able to access the Console
@@ -1089,6 +1160,15 @@ core:
         title: Disable identity authentication method
       disable_privileged:
         tooltip: The authentication method reserved by the system cannot be disabled
+    fields:
+      display_name:
+        local: Login with credentials
+      description:
+        local: Default login method built into Halo
+    list:
+      types:
+        form: Basic Authentication Method
+        oauth2: Third-party Authentication Method
     detail:
       title: Identity authentication detail
       fields:
@@ -1184,6 +1264,12 @@ core:
                   help: >-
                     Manually configure the validator application with the
                     following code:
+              tips: >-
+                Please keep your two-step verification device safe. If the
+                device is lost or damaged, you will not be able to log in. It is
+                recommended that you install the authenticator app on multiple
+                devices or keep a backup of the key in case the primary device
+                cannot be used.
     pat:
       operations:
         delete:
@@ -1301,6 +1387,12 @@ core:
           description: >-
             Are you sure you want to revoke this device? After revoking, this
             device will be logged out
+        revoke_others:
+          title: Revoke all other devices
+          description: >-
+            Are you sure you want to revoke all other devices? After you revoke,
+            other devices will be logged out
+          toast_success: Login status of other devices has been revoked
   uc_notification:
     title: Notifications
     tabs:
@@ -1316,6 +1408,14 @@ core:
       delete:
         description: Are you sure you want to delete this notification?
         title: Delete
+      delete_all:
+        title: Delete all current notifications
+        description: >-
+          Are you sure you want to delete all current notifications? You cannot
+          restore them after deletion.
+      mark_all_as_read:
+        title: Mark all current notifications as read
+        description: Mark all current messages as read. Do you want to continue?
   setting:
     title: Settings
   overview:
@@ -1403,13 +1503,13 @@ core:
           1. The restore process may last for a long time, please do not refresh
           the page during this period.
         second: >-
-          2. During the restore process, although the existing data will not be
-          cleaned up, if there is a conflict, the data will be overwritten.
+          2. Before performing the restore, all existing data will be cleared.
+          Please ensure that there is no data that needs to be retained.
         third: >-
           3. After the restore is completed, you need to restart Halo to load
           the system resources normally.
         complete: Restore completed, waiting for restart...
-      start: Start restore
+      start: I have read the above instructions, start restore
       tabs:
         local:
           label: Upload
@@ -1419,6 +1519,12 @@ core:
             url: Remote URL
         backup:
           label: Restore from backup files
+          empty:
+            title: No backup files
+            message: >-
+              Currently no backup files are scanned. You can manually upload the
+              backup files to the backups directory of the Halo working
+              directory.
   exception:
     not_found:
       message: Page not found
@@ -1426,25 +1532,6 @@ core:
       message: Unauthorized access to this page
     actions:
       home: Back to home
-  setup:
-    title: Setup
-    operations:
-      submit:
-        button: Setup
-        toast_success: Setup successfully
-      setup_initial_data:
-        loading: Initializing data, please wait...
-    fields:
-      site_title:
-        label: Site title
-      email:
-        label: Email
-      username:
-        label: Username
-      password:
-        label: Password
-      confirm_password:
-        label: Confirm password
   rbac:
     Attachments Management: Attachments
     Attachment Manage: Attachment Manage
@@ -1519,6 +1606,10 @@ core:
     Post Author: Allows you to manage your own posts
     Post Contributor: Contributions allowed
     Post Publisher: Allow to publish own posts
+    UC Attachment Manage: Allow to manage own attachments
+    role-template-uc-attachment-manager: Allow to manage own attachments
+    Recycle My Post: Recycle My Post
+    role-template-recycle-my-post: Recycle My Post
   components:
     submit_button:
       computed_text: "{text} ({shortcut})"
@@ -1637,6 +1728,9 @@ core:
       creation_label: Create {text} tag
     validation:
       trim: Please remove the leading and trailing spaces
+      password: >-
+        The password can only use uppercase and lowercase letters (A-Z, a-z),
+        numbers (0-9), and the following special characters: !{'@'}#$%^&*
     verification_form:
       no_action_defined: "{label} interface not defined"
       verify_success: "{label} successful"
@@ -1754,7 +1848,10 @@ core:
         editor_not_found: >-
           No editor found that matches the {raw_type} format. Please check if
           the editor plugin has been installed.
-        login_expired: The current session has expired. Click Confirm to go to the login page. Please ensure that the current content is saved. You can click Cancel to manually copy any unsaved content.
+        login_expired: >-
+          The current session has expired. Click Confirm to go to the login
+          page. Please ensure that the current content is saved. You can click
+          Cancel to manually copy any unsaved content.
     filters:
       results:
         keyword: "Keyword: {keyword}"
@@ -1779,6 +1876,7 @@ core:
       none: None
       tip: Tip
       warning: Warning
+      system_protection: System protection
     tooltips:
       unpublished_content_tip: There is content that has been saved but not yet published.
       publishing: Publishing
@@ -1792,6 +1890,11 @@ core:
       cancel_publish:
         description: Are you sure you want to cancel publishing?
         title: Cancel publish
+      delete:
+        title: Delete post
+        description: >-
+          This action will move the post to the recycle bin, where it will be
+          managed by the site administrator.
     publish_modal:
       title: Publish post
     setting_modal:

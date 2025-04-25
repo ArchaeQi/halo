@@ -4,16 +4,20 @@ import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.GenericApplicationContext;
+import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
 import org.springframework.security.web.server.context.ServerSecurityContextRepository;
 import org.springframework.security.web.server.savedrequest.ServerRequestCache;
 import run.halo.app.content.PostContentService;
 import run.halo.app.core.extension.service.AttachmentService;
+import run.halo.app.core.user.service.RoleService;
+import run.halo.app.core.user.service.UserService;
 import run.halo.app.extension.DefaultSchemeManager;
 import run.halo.app.extension.ExtensionClient;
 import run.halo.app.extension.ReactiveExtensionClient;
 import run.halo.app.infra.BackupRootGetter;
 import run.halo.app.infra.ExternalLinkProcessor;
 import run.halo.app.infra.ExternalUrlSupplier;
+import run.halo.app.infra.SystemInfoGetter;
 import run.halo.app.notification.NotificationCenter;
 import run.halo.app.notification.NotificationReasonEmitter;
 import run.halo.app.plugin.extensionpoint.ExtensionGetter;
@@ -85,6 +89,18 @@ public enum SharedApplicationContextFactory {
         rootContext.getBeanProvider(ServerRequestCache.class)
             .ifUnique(serverRequestCache ->
                 beanFactory.registerSingleton("serverRequestCache", serverRequestCache)
+            );
+        rootContext.getBeanProvider(UserService.class)
+            .ifUnique(userService -> beanFactory.registerSingleton("userService", userService));
+        rootContext.getBeanProvider(RoleService.class)
+            .ifUnique(roleService -> beanFactory.registerSingleton("roleService", roleService));
+        rootContext.getBeanProvider(ReactiveUserDetailsService.class)
+            .ifUnique(userDetailsService ->
+                beanFactory.registerSingleton("userDetailsService", userDetailsService)
+            );
+        rootContext.getBeanProvider(SystemInfoGetter.class)
+            .ifUnique(systemInfoGetter ->
+                beanFactory.registerSingleton("systemInfoGetter", systemInfoGetter)
             );
         // TODO add more shared instance here
 

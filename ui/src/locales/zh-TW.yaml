@@ -26,10 +26,13 @@ core:
       logout:
         tooltip: 登出
         title: 登出
+        description: 點擊確定將跳轉至退出登入頁面，請確保正在編輯的內容已保存。
       profile:
         tooltip: 個人中心
       visit_homepage:
         title: 訪問首頁
+    profile:
+      aggregate_role: 聚合角色
   uc_sidebar:
     menu:
       items:
@@ -39,6 +42,8 @@ core:
     operations:
       console:
         tooltip: 管理控制台
+    profile:
+      aggregate_role: 聚合角色
   dashboard:
     title: 儀表板
     actions:
@@ -218,6 +223,14 @@ core:
         allow_comment_value: 選擇是否允許評論
         owner_group: 作者
         owner_value: 設置作者
+    tag:
+      filters:
+        sort:
+          items:
+            create_time_desc: 較近建立
+            create_time_asc: 較早建立
+            display_name_desc: 標籤名稱降序
+            display_name_asc: 標籤名稱升序
   deleted_post:
     title: 文章回收站
     empty:
@@ -548,6 +561,8 @@ core:
       fields:
         display_name:
           label: 名稱
+      toast:
+        group_name_exists: 分組名稱已存在
     group_list:
       internal_groups:
         all: 全部
@@ -583,6 +598,8 @@ core:
       fields:
         display_name:
           label: 名稱
+      toast:
+        policy_name_exists: 儲存策略名稱已存在
     upload_modal:
       title: 上傳附件
       filters:
@@ -594,6 +611,50 @@ core:
             title: 沒有存儲策略
             description: 在上傳之前，需要新建一個存儲策略
           not_select: 請先選擇存儲策略
+    select_modal:
+      title: 選擇附件
+      providers:
+        default:
+          label: 附件庫
+      operations:
+        select:
+          result: （已選擇 {count} 項）
+  uc_attachment:
+    empty:
+      title: 當前沒有附件
+      message: 當前沒有附件，你可以嘗試重整或者上傳附件
+      actions:
+        upload: 上傳附件
+    filters:
+      sort:
+        items:
+          create_time_desc: 較近上傳
+          create_time_asc: 較晚上傳
+          size_desc: 文件大小降序
+          size_asc: 文件大小升序
+          display_name_asc: 文件名升序
+          display_name_desc: 文件名降序
+      view_type:
+        items:
+          grid: 網格模式
+          list: 列表模式
+    detail_modal:
+      title: 附件：{display_name}
+      fields:
+        preview: 預覽
+        display_name: 文件名稱
+        media_type: 文件類型
+        size: 文件大小
+        owner: 上傳者
+        creation_time: 上傳時間
+        permalink: 連結
+      preview:
+        click_to_exit: 點擊離開預覽
+        video_not_support: 當前瀏覽器不支援該影片播放
+        audio_not_support: 當前瀏覽器不支援該音頻播放
+        not_support: 此文件不支援預覽
+    upload_modal:
+      title: 上傳附件
     select_modal:
       title: 選擇附件
       providers:
@@ -875,6 +936,12 @@ core:
         title: 修改密碼
       grant_permission:
         title: 分配角色
+      enable:
+        title: 取消停用
+        description: 確定要取消停用該用戶嗎？
+      disable:
+        title: 停用
+        description: 確定要停用該用戶嗎？停用後該用戶將無法登入系統
     filters:
       role:
         label: 角色
@@ -917,6 +984,9 @@ core:
         role:
           label: 角色
           placeholder: 請選擇角色
+      roles_preview:
+        all: 目前所選角色包含所有權限
+        includes: 目前選定角色所包含的權限：
     detail:
       title: 用戶詳情
       tabs:
@@ -926,6 +996,8 @@ core:
           title: 修改資料
         change_password:
           title: 修改密碼
+        grant_permission:
+          title: 分配角色
         profile:
           title: 個人中心
       fields:
@@ -940,6 +1012,8 @@ core:
           tooltip: 已驗證
         email_not_verified:
           tooltip: 未驗證
+    fields:
+      disabled: 已停用
   role:
     title: 角色
     common:
@@ -980,7 +1054,6 @@ core:
         permissions: 權限
       fields:
         display_name: 名稱
-        redirect_on_login: 登入之後預設跳轉位置
         disallow_access_console:
           label: 禁止訪問 Console
           help: 勾選之後，該角色將無法存取 Console
@@ -996,6 +1069,15 @@ core:
         title: 停用認證方式
       disable_privileged:
         tooltip: 系統保留的認證方式，無法禁用
+    fields:
+      display_name:
+        local: 帳號密碼登入
+      description:
+        local: Halo 內建的默認登入方式
+    list:
+      types:
+        form: 基礎認證方式
+        oauth2: 三方認證方式
     detail:
       title: 身份認證詳情
       fields:
@@ -1081,6 +1163,7 @@ core:
                 manual:
                   label: 如果您無法掃描二維碼，請按一下查看替代步驟。
                   help: 使用以下程式碼手動配置驗證器應用程式：
+              tips: 請妥善保管您的兩步驟驗證裝置，如果裝置遺失或損壞，您將無法登入系統。建議您在多個裝置上安裝驗證器應用程式，或保存好金鑰的備份，以防主要裝置無法使用。
     pat:
       operations:
         delete:
@@ -1180,6 +1263,7 @@ core:
       list:
         fields:
           last_accessed_time: 上次訪問：{time}
+          current: 目前設備
       detail_modal:
         title: 登入設備詳情
         fields:
@@ -1192,6 +1276,10 @@ core:
         revoke:
           title: 撤銷設備
           description: 確定要撤銷該設備嗎？撤銷之後，此裝置會退出登錄
+        revoke_others:
+          title: 撤銷其他所有設備
+          toast_success: 已撤銷其他設備的登入狀態
+          description: 確定要撤銷其他所有設備嗎？撤銷之後，其他設備會登出登入
   uc_notification:
     title: 訊息
     tabs:
@@ -1207,6 +1295,12 @@ core:
       delete:
         description: 確定要刪除該訊息嗎？
         title: 刪除訊息
+      delete_all:
+        title: 刪除目前所有通知
+        description: 確定要刪除目前所有通知嗎？刪除後將無法復原。
+      mark_all_as_read:
+        title: 將目前所有通知標示為已讀
+        description: 將目前所有通知標示為已讀，是否繼續？
   setting:
     title: 設置
   overview:
@@ -1281,10 +1375,10 @@ core:
     restore:
       tips:
         first: 1. 還原過程可能需要較長時間，期間請勿重新整理頁面。
-        second: 2. 在還原過程中，雖然已有的資料不會被清除，但若有衝突的資料將被覆蓋。
+        second: 2. 在執行恢復之前，會清空現有的所有數據，請確保當前沒有需要保留的數據。
         third: 3. 還原完成後需要重新啟動 Halo 才能正常載入系統資源。
         complete: 還原完成，等待重啟...
-      start: 開始還原
+      start: 我已閱讀上方提示，開始恢復
       tabs:
         local:
           label: 上傳
@@ -1294,6 +1388,9 @@ core:
             url: 下載地址
         backup:
           label: 從備份檔案恢復
+          empty:
+            title: 沒有備份文件
+            message: 目前沒有掃描到備份文件，你可以手動將備份文件上傳到 Halo 工作目錄的 backups 目錄。
   exception:
     not_found:
       message: 沒有找到該頁面
@@ -1301,25 +1398,6 @@ core:
       message: 沒有權限訪問此頁面
     actions:
       home: 返回首頁
-  setup:
-    title: 系統初始化
-    operations:
-      submit:
-        button: 初始化
-        toast_success: 初始化成功
-      setup_initial_data:
-        loading: 正在初始化資料，請稍後...
-    fields:
-      site_title:
-        label: 站點名稱
-      email:
-        label: 電子郵箱
-      username:
-        label: 用戶名
-      password:
-        label: 密碼
-      confirm_password:
-        label: 確認密碼
   rbac:
     Attachments Management: 附件
     Attachment Manage: 附件管理
@@ -1394,6 +1472,10 @@ core:
     Post Author: 允許管理自己的文章
     Post Contributor: 允許投稿
     Post Publisher: 允許發布自己的文章
+    UC Attachment Manage: 允許管理自己的附件
+    role-template-uc-attachment-manager: 允許管理自己的附件
+    Recycle My Post: 允許刪除自己的文章
+    role-template-recycle-my-post: 允許刪除自己的文章
   components:
     submit_button:
       computed_text: "{text}（{shortcut}）"
@@ -1493,9 +1575,7 @@ core:
         aspect_ratio_portrait: 裁剪為縱向 (9:16)
     h2_warning_alert:
       title: 警告：正在使用 H2 資料庫
-      description: >-
-        H2 資料庫僅適用於開發環境和測試環境，不建議在生產環境中使用，H2
-        非常容易因為操作不當而導致資料檔案損壞。如果必須要使用，請按時進行資料備份。
+      description: H2 資料庫僅適用於開發環境和測試環境，不建議在生產環境中使用，H2 非常容易因為操作不當而導致資料檔案損壞。如果必須要使用，請按時進行資料備份。
   composables:
     content_cache:
       toast_recovered: 已從緩存中恢復未保存的內容
@@ -1508,6 +1588,7 @@ core:
       creation_label: 創建 {text} 標籤
     validation:
       trim: 不能以空格開頭或結尾
+      password: "密碼只能使用大小寫字母 (A-Z, a-z)、數字 (0-9)，以及以下特殊字符: !{'@'}#$%^&*"
     verification_form:
       no_action_defined: 未定義{label}介面
       verify_success: "{label}成功"
@@ -1645,6 +1726,7 @@ core:
       none: 無
       tip: 提示
       warning: 警告
+      system_protection: 系統保留
     tooltips:
       unpublished_content_tip: 當前有內容已保存，但還未發布。
       publishing: 發布中
@@ -1658,6 +1740,9 @@ core:
       cancel_publish:
         description: 確定要取消發布嗎？
         title: 取消發布
+      delete:
+        title: 刪除文章
+        description: 該操作會將文章放入回收站，後續由網站管理員進行管理。
     publish_modal:
       title: 發布文章
     setting_modal:

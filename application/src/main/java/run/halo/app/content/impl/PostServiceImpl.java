@@ -4,9 +4,11 @@ import static run.halo.app.extension.index.query.QueryFactory.in;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.function.UnaryOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -77,7 +79,7 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
             )
             .flatMap(listResult -> Flux.fromStream(listResult.get())
                 .map(this::getListedPost)
-                .concatMap(Function.identity())
+                .flatMapSequential(Function.identity())
                 .collectList()
                 .map(listedPosts -> new ListResult<>(listResult.getPage(), listResult.getSize(),
                     listResult.getTotal(), listedPosts)
@@ -161,13 +163,17 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
         return client.listAll(Tag.class, listOptions, Sort.by("metadata.creationTimestamp"));
     }
 
-    private Flux<Category> listCategories(List<String> categoryNames) {
+    @Override
+    public Flux<Category> listCategories(List<String> categoryNames) {
         if (categoryNames == null) {
             return Flux.empty();
         }
+        ToIntFunction<Category> comparator =
+            category -> categoryNames.indexOf(category.getMetadata().getName());
         var listOptions = new ListOptions();
         listOptions.setFieldSelector(FieldSelector.of(in("metadata.name", categoryNames)));
-        return client.listAll(Category.class, listOptions, Sort.by("metadata.creationTimestamp"));
+        return client.listAll(Category.class, listOptions, Sort.unsorted())
+            .sort(Comparator.comparingInt(comparator));
     }
 
     private Flux<Contributor> listContributors(List<String> usernames) {
@@ -175,7 +181,7 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
             return Flux.empty();
         }
         return Flux.fromIterable(usernames)
-            .concatMap(userService::getUserOrGhost)
+            .flatMapSequential(userService::getUserOrGhost)
             .map(user -> {
                 Contributor contributor = new Contributor();
                 contributor.setName(user.getMetadata().getName());
@@ -377,6 +383,15 @@ public class PostServiceImpl extends AbstractContentService implements PostServi
                     .flatMap(client::delete)
                     .flatMap(deleted -> restoredContent(baseSnapshotName, deleted));
             });
+    }
+
+    @Override
+    public Mono<Post> recycleBy(String postName, String username) {
+        return getByUsername(postName, username)
+            .flatMap(post -> updatePostWithRetry(post, record -> {
+                record.getSpec().setDeleted(true);
+                return record;
+            }));
     }
 
     private Mono<Post> updatePostWithRetry(Post post, UnaryOperator<Post> func) {

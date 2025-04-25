@@ -118,6 +118,11 @@ spec:
           label: "头像存储位置"
           value: "default-policy"
           help: 指定用户上传头像的存储策略
+        - $formkit: attachmentPolicySelect
+          name: ucAttachmentPolicy
+          label: "个人中心附件存储位置"
+          value: "default-policy"
+          help: 指定用户在个人中心上传的附件的存储位置
     - group: comment
       label: 评论设置
       formSchema:
@@ -137,6 +142,11 @@ spec:
     - group: routeRules
       label: 主题路由设置
       formSchema:
+        - $formkit: checkbox
+          label: "关闭主题预览"
+          value: false
+          name: disableThemePreview
+          help: "关闭后，未包含主题管理权限的用户将无法通过参数预览未激活的主题"
         - $formkit: text
           label: "分类页路由前缀"
           value: "categories"
@@ -170,6 +180,8 @@ spec:
               value: '/{year:\d{4}}/{month:\d{2}}/{slug}'
             - label: '/{year}/{month}/{day}/{slug}'
               value: '/{year:\d{4}}/{month:\d{2}}/{day:\d{2}}/{slug}'
+            - label: '/categories/{categorySlug}/{slug}'
+              value: '/categories/{categorySlug}/{slug}'
           name: post
           validation: required
     - group: codeInjection

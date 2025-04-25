@@ -21,9 +21,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.pf4j.DependencyResolver;
+import org.pf4j.PluginDependency;
 import org.pf4j.PluginDescriptor;
 import org.pf4j.PluginWrapper;
 import org.reactivestreams.Publisher;
@@ -36,6 +39,7 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
@@ -110,18 +114,36 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
     }
 
     @Override
-    public Flux<Plugin> getPresets() {
-        // list presets from classpath
-        return Flux.defer(() -> getPresetJars()
-            .map(this::toPath)
-            .map(path -> new YamlPluginFinder().find(path)));
+    public Mono<Void> installPresetPlugins() {
+        return getPresetJars()
+            .flatMap(path -> this.install(path)
+                .onErrorResume(PluginAlreadyExistsException.class, e -> Mono.empty())
+                .flatMap(plugin -> FileUtils.deleteFileSilently(path)
+                    .thenReturn(plugin)
+                )
+            )
+            .flatMap(this::enablePlugin)
+            .subscribeOn(Schedulers.boundedElastic())
+            .then();
     }
 
-    @Override
-    public Mono<Plugin> getPreset(String presetName) {
-        return getPresets()
-            .filter(plugin -> Objects.equals(plugin.getMetadata().getName(), presetName))
-            .next();
+    private Mono<Plugin> enablePlugin(Plugin plugin) {
+        plugin.getSpec().setEnabled(true);
+        return client.update(plugin)
+            .onErrorResume(OptimisticLockingFailureException.class,
+                e -> enablePlugin(plugin.getMetadata().getName())
+            );
+    }
+
+    private Mono<Plugin> enablePlugin(String name) {
+        return Mono.defer(() -> client.get(Plugin.class, name)
+                .flatMap(plugin -> {
+                    plugin.getSpec().setEnabled(true);
+                    return client.update(plugin);
+                })
+            )
+            .retryWhen(Retry.backoff(8, Duration.ofMillis(100))
+                .filter(OptimisticLockingFailureException.class::isInstance));
     }
 
     @Override
@@ -247,14 +269,9 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
             });
         var body = Flux.fromIterable(startedPlugins)
             .sort(Comparator.comparing(PluginWrapper::getPluginId))
-            .concatMap(pluginWrapper -> {
+            .flatMapSequential(pluginWrapper -> {
                 var pluginId = pluginWrapper.getPluginId();
-                return Mono.<Resource>fromSupplier(
-                        () -> BundleResourceUtils.getJsBundleResource(
-                            pluginManager, pluginId, BundleResourceUtils.JS_BUNDLE
-                        )
-                    )
-                    .filter(Resource::isReadable)
+                return getBundleResource(pluginId, BundleResourceUtils.JS_BUNDLE)
                     .flatMapMany(resource -> {
                         var head = Mono.<DataBuffer>fromSupplier(
                             () -> dataBufferFactory.wrap(
@@ -274,13 +291,10 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
     public Flux<DataBuffer> uglifyCssBundle() {
         return Flux.fromIterable(pluginManager.getStartedPlugins())
             .sort(Comparator.comparing(PluginWrapper::getPluginId))
-            .concatMap(pluginWrapper -> {
+            .flatMapSequential(pluginWrapper -> {
                 var pluginId = pluginWrapper.getPluginId();
                 var dataBufferFactory = DefaultDataBufferFactory.sharedInstance;
-                return Mono.<Resource>fromSupplier(() -> BundleResourceUtils.getJsBundleResource(
-                        pluginManager, pluginId, BundleResourceUtils.CSS_BUNDLE
-                    ))
-                    .filter(Resource::isReadable)
+                return getBundleResource(pluginId, BundleResourceUtils.CSS_BUNDLE)
                     .flatMapMany(resource -> {
                         var head = Mono.<DataBuffer>fromSupplier(() -> dataBufferFactory.wrap(
                             ("/* Generated from plugin " + pluginId + " */\n").getBytes()
@@ -291,6 +305,13 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
                         return Flux.concat(head, content, tail);
                     });
             });
+    }
+
+    private Mono<Resource> getBundleResource(String pluginName, String bundleName) {
+        return Mono.fromSupplier(
+                () -> BundleResourceUtils.getJsBundleResource(pluginManager, pluginName, bundleName)
+            )
+            .filter(Resource::isReadable);
     }
 
     @Override
@@ -324,14 +345,9 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
                     // preflight check
                     if (requestToEnable) {
                         // make sure the dependencies are enabled
-                        var dependencies = plugin.getSpec().getPluginDependencies().keySet();
-                        var notStartedDependencies = dependencies.stream()
-                            .filter(dependency -> {
-                                var pluginWrapper = pluginManager.getPlugin(dependency);
-                                return pluginWrapper == null
-                                    || !Objects.equals(STARTED, pluginWrapper.getPluginState());
-                            })
-                            .toList();
+                        var notStartedDependencies = getRequiredDependencies(plugin,
+                            pw -> pw == null || !Objects.equals(STARTED, pw.getPluginState())
+                        );
                         if (!CollectionUtils.isEmpty(notStartedDependencies)) {
                             return Mono.error(
                                 new PluginDependenciesNotEnabledException(notStartedDependencies)
@@ -394,6 +410,28 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
         }
 
         return updatedPlugin;
+    }
+
+    @Override
+    public List<String> getRequiredDependencies(Plugin plugin,
+        Predicate<PluginWrapper> predicate) {
+        return getPluginDependency(plugin)
+            .stream()
+            .filter(dependency -> !dependency.isOptional())
+            .map(PluginDependency::getPluginId)
+            .filter(dependencyPlugin -> {
+                var pluginWrapper = pluginManager.getPlugin(dependencyPlugin);
+                return predicate.test(pluginWrapper);
+            })
+            .sorted()
+            .toList();
+    }
+
+    private static List<PluginDependency> getPluginDependency(Plugin plugin) {
+        return plugin.getSpec().getPluginDependencies().keySet()
+            .stream()
+            .map(PluginDependency::new)
+            .toList();
     }
 
     Mono<Plugin> findPluginManifest(Path path) {
@@ -481,21 +519,23 @@ public class PluginServiceImpl implements PluginService, InitializingBean, Dispo
         }
     }
 
-    private Flux<Resource> getPresetJars() {
+    private Flux<Path> getPresetJars() {
         var resolver = new PathMatchingResourcePatternResolver();
         try {
             var resources = resolver.getResources(PRESETS_LOCATION_PATTERN);
-            return Flux.fromArray(resources);
+            return Flux.fromArray(resources)
+                .mapNotNull(resource -> {
+                    var filename = resource.getFilename();
+                    if (StringUtils.isBlank(filename)) {
+                        return null;
+                    }
+                    var path = tempDir.resolve(filename);
+                    FileUtils.copyResource(resource, path);
+                    return path;
+                });
         } catch (IOException e) {
-            return Flux.error(e);
-        }
-    }
-
-    private Path toPath(Resource resource) {
-        try {
-            return Path.of(resource.getURI());
-        } catch (IOException e) {
-            throw Exceptions.propagate(e);
+            log.debug("Failed to load preset plugins: {}", e.getMessage());
+            return Flux.empty();
         }
     }
 

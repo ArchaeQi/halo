@@ -1,6 +1,6 @@
 server:
   port: 8090
-  forward-headers-strategy: framework
+  forward-headers-strategy: native
   compression:
     enabled: true
   error:
@@ -34,6 +34,9 @@ spring:
     type: caffeine
     caffeine:
       spec: expireAfterAccess=1h, maximumSize=10000
+  threads:
+    virtual:
+      enabled: true
 
 halo:
   work-dir: ${user.home}/.halo2
@@ -42,6 +45,11 @@ halo:
       - pathPattern: /upload/**
         locations:
           - migrate-from-1.x
+  security:
+    password-reset-methods:
+      - name: email
+        href: /password-reset/email
+        icon: /images/password-reset-methods/email.svg
 
 springdoc:
   api-docs:
@@ -49,6 +57,8 @@ springdoc:
   writer-with-order-by-keys: true
 
 logging:
+  level:
+    org.thymeleaf.TemplateEngine: OFF
   file:
     name: ${halo.work-dir}/logs/halo.log
   logback:
